@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
 })
 
 const FROM = process.env.SMTP_FROM ?? 'FitTracker'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.APP_URL ?? 'http://localhost:3000'
 
 export async function sendVerificationEmail(to: string, token: string) {
   const link = `${APP_URL}/api/auth/verify-email?token=${token}`
