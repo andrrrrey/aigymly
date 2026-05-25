@@ -1,0 +1,38 @@
+'use client'
+import { create } from 'zustand'
+
+export interface AuthUser {
+  email: string
+  emailVerified: boolean
+}
+
+interface AuthState {
+  user: AuthUser | null
+  loading: boolean
+  hydrate: () => Promise<void>
+  logout: () => Promise<void>
+}
+
+export const useAuth = create<AuthState>((set) => ({
+  user: null,
+  loading: true,
+
+  hydrate: async () => {
+    try {
+      const res = await fetch('/api/auth/me')
+      if (res.ok) {
+        const user = await res.json()
+        set({ user, loading: false })
+      } else {
+        set({ user: null, loading: false })
+      }
+    } catch {
+      set({ user: null, loading: false })
+    }
+  },
+
+  logout: async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    set({ user: null })
+  },
+}))

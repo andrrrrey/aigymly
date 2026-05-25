@@ -1,11 +1,40 @@
 'use client';
 
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { BottomNav } from '@/components/BottomNav';
-import { ChevronRight, Settings } from 'lucide-react';
+import { AuthSheet } from '@/components/auth/AuthSheet';
+import { useAuth } from '@/store/auth';
+import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle } from 'lucide-react';
+
+// Separate component to use useSearchParams inside Suspense
+function BannerFromURL({ onBanner }: { onBanner: (b: 'verified' | 'error' | null) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('verified') === '1') {
+      onBanner('verified');
+      window.history.replaceState({}, '', '/profile');
+    } else if (searchParams.get('error') === 'invalid_token') {
+      onBanner('error');
+      window.history.replaceState({}, '', '/profile');
+    }
+  }, [searchParams, onBanner]);
+  return null;
+}
 
 export default function ProfilePage() {
+  const { user, loading, logout } = useAuth();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [banner, setBanner] = useState<'verified' | 'error' | null>(null);
+
+  const avatarLetter = user?.email?.[0]?.toUpperCase() ?? 'Г';
+
   return (
     <>
+      <Suspense fallback={null}>
+        <BannerFromURL onBanner={setBanner} />
+      </Suspense>
+
       <header
         className="shrink-0 bg-white"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
@@ -21,19 +50,67 @@ export default function ProfilePage() {
       </header>
 
       <main className="no-scrollbar flex-1 overflow-y-auto bg-white px-5 pb-24">
+        {/* Banners */}
+        {banner === 'verified' && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl bg-marker-green/10 px-4 py-3 text-[13px] text-marker-green">
+            <CheckCircle size={16} className="shrink-0" />
+            <span>Email успешно подтверждён!</span>
+            <button onClick={() => setBanner(null)} className="ml-auto text-marker-green/60">✕</button>
+          </div>
+        )}
+        {banner === 'error' && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl bg-marker-red/10 px-4 py-3 text-[13px] text-marker-red">
+            <AlertCircle size={16} className="shrink-0" />
+            <span>Ссылка для подтверждения устарела или недействительна.</span>
+            <button onClick={() => setBanner(null)} className="ml-auto text-marker-red/60">✕</button>
+          </div>
+        )}
+
+        {/* Avatar + info */}
         <div className="flex items-center gap-4 py-4">
           <div className="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-[22px] font-semibold text-white">
-            A
+            {avatarLetter}
           </div>
-          <div>
-            <h2 className="text-[18px] font-semibold tracking-tight text-ink-900">Гость</h2>
-            <p className="text-[13px] text-ink-500">Войти, чтобы синхронизировать данные</p>
+          <div className="min-w-0">
+            {loading ? (
+              <div className="h-4 w-32 animate-pulse rounded-full bg-ink-100" />
+            ) : user ? (
+              <>
+                <h2 className="truncate text-[18px] font-semibold tracking-tight text-ink-900">
+                  {user.email}
+                </h2>
+                {!user.emailVerified && (
+                  <p className="text-[12px] text-marker-orange">Email не подтверждён</p>
+                )}
+              </>
+            ) : (
+              <>
+                <h2 className="text-[18px] font-semibold tracking-tight text-ink-900">Гость</h2>
+                <p className="text-[13px] text-ink-500">Войдите, чтобы синхронизировать данные</p>
+              </>
+            )}
           </div>
         </div>
 
-        <button className="tappable mt-2 flex w-full items-center justify-center rounded-full bg-brand py-3 text-[15px] font-semibold text-white shadow-fab">
-          Войти / Зарегистрироваться
-        </button>
+        {/* Auth button */}
+        {!loading && (
+          user ? (
+            <button
+              onClick={() => logout()}
+              className="tappable mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-ink-200 py-3 text-[15px] font-semibold text-ink-700 transition-colors hover:bg-ink-50"
+            >
+              <LogOut size={18} />
+              Выйти
+            </button>
+          ) : (
+            <button
+              onClick={() => setSheetOpen(true)}
+              className="tappable mt-2 flex w-full items-center justify-center rounded-full bg-brand py-3 text-[15px] font-semibold text-white shadow-fab"
+            >
+              Войти / Зарегистрироваться
+            </button>
+          )
+        )}
 
         <div className="mt-6 space-y-1">
           <ProfileRow label="Личные данные" />
@@ -43,7 +120,9 @@ export default function ProfilePage() {
           <ProfileRow label="Помощь и поддержка" />
         </div>
       </main>
+
       <BottomNav />
+      <AuthSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </>
   );
 }
