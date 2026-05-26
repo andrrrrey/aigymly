@@ -19,7 +19,7 @@ export const useAuth = create<AuthState>((set) => ({
 
   hydrate: async () => {
     try {
-      const res = await fetch('/api/auth/me')
+      const res = await fetch('/api/auth/me', { cache: 'no-store' })
       if (res.ok) {
         const user = await res.json()
         set({ user, loading: false })

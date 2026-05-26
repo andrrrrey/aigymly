@@ -27,18 +27,22 @@ export default function ProfilePage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [banner, setBanner] = useState<'verified' | 'error' | null>(null);
   const [resending, setResending] = useState(false);
-  const [pinSent, setPinSent] = useState(false);
   const [pin, setPin] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
   const [pinError, setPinError] = useState('');
 
+  const [resendDone, setResendDone] = useState(false);
+
   async function resendVerification() {
     setResending(true);
     setPinError('');
+    setResendDone(false);
     try {
-      await fetch('/api/auth/resend-verification', { method: 'POST' });
-      setPinSent(true);
-      setPin('');
+      const res = await fetch('/api/auth/resend-verification', { method: 'POST' });
+      if (res.ok) {
+        setPin('');
+        setResendDone(true);
+      }
     } finally {
       setResending(false);
     }
@@ -139,46 +143,46 @@ export default function ProfilePage() {
               {!user.emailVerified && (
                 <div className="rounded-2xl bg-marker-orange/10 px-4 py-3 space-y-3">
                   <p className="text-[13px] text-marker-orange">
-                    Email не подтверждён. Введите код из письма или запросите новый.
+                    Введите 4-значный код из письма на {user.email}
                   </p>
-                  {pinSent && (
-                    <form onSubmit={handlePinSubmit} className="space-y-2">
-                      <p className="text-[12px] text-ink-500">Код отправлен на {user.email}</p>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="one-time-code"
-                          maxLength={4}
-                          placeholder="0000"
-                          value={pin}
-                          onChange={(e) => {
-                            setPinError('');
-                            setPin(e.target.value.replace(/\D/g, '').slice(0, 4));
-                          }}
-                          className="w-24 rounded-xl border border-ink-200 bg-white px-3 py-2 text-center text-[18px] font-bold tracking-widest text-ink-900 focus:border-brand focus:outline-none"
-                          required
-                        />
-                        <button
-                          type="submit"
-                          disabled={pinLoading || pin.length < 4}
-                          className="flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
-                        >
-                          {pinLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                          Подтвердить
-                        </button>
-                      </div>
-                      {pinError && <p className="text-[12px] text-marker-red">{pinError}</p>}
-                    </form>
+                  <form onSubmit={handlePinSubmit} className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={4}
+                        placeholder="0000"
+                        value={pin}
+                        onChange={(e) => {
+                          setPinError('');
+                          setPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+                        }}
+                        className="w-24 rounded-xl border border-ink-200 bg-white px-3 py-2 text-center text-[18px] font-bold tracking-widest text-ink-900 focus:border-brand focus:outline-none"
+                        required
+                      />
+                      <button
+                        type="submit"
+                        disabled={pinLoading || pin.length < 4}
+                        className="flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
+                      >
+                        {pinLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                        Подтвердить
+                      </button>
+                    </div>
+                    {pinError && <p className="text-[12px] text-marker-red">{pinError}</p>}
+                  </form>
+                  {resendDone ? (
+                    <p className="text-[12px] text-marker-green">✓ Новый код отправлен на {user.email}</p>
+                  ) : (
+                    <button
+                      onClick={resendVerification}
+                      disabled={resending}
+                      className="text-[12px] text-marker-orange underline-offset-2 underline disabled:opacity-60"
+                    >
+                      {resending ? 'Отправляем...' : 'Отправить код снова'}
+                    </button>
                   )}
-                  <button
-                    onClick={resendVerification}
-                    disabled={resending}
-                    className="flex items-center gap-1.5 text-[13px] font-semibold text-marker-orange disabled:opacity-60"
-                  >
-                    {resending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
-                    {resending ? 'Отправляем...' : pinSent ? 'Отправить код снова' : 'Отправить код на почту'}
-                  </button>
                 </div>
               )}
               <button
