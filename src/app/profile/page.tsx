@@ -65,7 +65,6 @@ export default function ProfilePage() {
       }
       await hydrate();
       setBanner('verified');
-      setPinSent(false);
     } finally {
       setPinLoading(false);
     }
