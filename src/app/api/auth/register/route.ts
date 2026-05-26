@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { setSessionCookie } from '@/lib/auth'
 import { sendVerificationEmail } from '@/lib/email'
@@ -34,15 +33,13 @@ export async function POST(req: Request) {
       data: { email: normalizedEmail, passwordHash },
     })
 
-    const tokenValue = crypto.randomBytes(32).toString('hex')
+    const pin = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
     await db.token.create({
-      data: { userId: user.id, type: 'EMAIL_VERIFICATION', token: tokenValue, expiresAt },
+      data: { userId: user.id, type: 'EMAIL_VERIFICATION', token: pin, expiresAt },
     })
 
-    console.log('[register] APP_URL =', process.env['APP_URL'])
-    console.log('[register] all env keys with APP or URL:', Object.keys(process.env).filter(k => k.includes('APP') || k.includes('URL')))
-    await sendVerificationEmail(normalizedEmail, tokenValue)
+    await sendVerificationEmail(normalizedEmail, pin)
     await setSessionCookie(user.id, user.email)
 
     return NextResponse.json({ ok: true, emailVerified: false }, { status: 201 })
