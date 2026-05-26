@@ -17,6 +17,7 @@ export async function sendVerificationEmail(to: string, token: string) {
   const appUrl = process.env['APP_URL'] ?? 'http://localhost:3000'
   const from = process.env['SMTP_FROM'] ?? 'FitTracker'
   const link = `${appUrl}/api/auth/verify-email?token=${token}`
+  console.log('[email] sendVerificationEmail link =', link)
 
   await getTransporter().sendMail({
     from,
