@@ -40,6 +40,8 @@ export async function POST(req: Request) {
       data: { userId: user.id, type: 'EMAIL_VERIFICATION', token: tokenValue, expiresAt },
     })
 
+    console.log('[register] APP_URL =', process.env['APP_URL'])
+    console.log('[register] all env keys with APP or URL:', Object.keys(process.env).filter(k => k.includes('APP') || k.includes('URL')))
     await sendVerificationEmail(normalizedEmail, tokenValue)
     await setSessionCookie(user.id, user.email)
 
