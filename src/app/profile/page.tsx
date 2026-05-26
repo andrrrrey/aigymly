@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { BottomNav } from '@/components/BottomNav';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { useAuth } from '@/store/auth';
-import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle, Mail, Loader2 } from 'lucide-react';
+import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle, Mail, Loader2, Send } from 'lucide-react';
 
 // Separate component to use useSearchParams inside Suspense
 function BannerFromURL({ onBanner }: { onBanner: (b: 'verified' | 'error' | null) => void }) {
@@ -23,20 +23,47 @@ function BannerFromURL({ onBanner }: { onBanner: (b: 'verified' | 'error' | null
 }
 
 export default function ProfilePage() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, hydrate } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [banner, setBanner] = useState<'verified' | 'error' | null>(null);
   const [resending, setResending] = useState(false);
-  const [resendDone, setResendDone] = useState(false);
+  const [pinSent, setPinSent] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState('');
 
   async function resendVerification() {
     setResending(true);
-    setResendDone(false);
+    setPinError('');
     try {
       await fetch('/api/auth/resend-verification', { method: 'POST' });
-      setResendDone(true);
+      setPinSent(true);
+      setPin('');
     } finally {
       setResending(false);
+    }
+  }
+
+  async function handlePinSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setPinError('');
+    setPinLoading(true);
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPinError(data.error === 'INVALID_PIN' ? 'Неверный или истёкший код' : 'Ошибка сервера');
+        return;
+      }
+      await hydrate();
+      setBanner('verified');
+      setPinSent(false);
+    } finally {
+      setPinLoading(false);
     }
   }
 
@@ -110,22 +137,48 @@ export default function ProfilePage() {
           user ? (
             <div className="mt-2 space-y-2">
               {!user.emailVerified && (
-                <div className="rounded-2xl bg-marker-orange/10 px-4 py-3">
+                <div className="rounded-2xl bg-marker-orange/10 px-4 py-3 space-y-3">
                   <p className="text-[13px] text-marker-orange">
-                    Email не подтверждён. Проверьте почту или отправьте письмо повторно.
+                    Email не подтверждён. Введите код из письма или запросите новый.
                   </p>
-                  {resendDone ? (
-                    <p className="mt-2 text-[13px] font-medium text-marker-green">✓ Письмо отправлено на {user.email}</p>
-                  ) : (
-                    <button
-                      onClick={resendVerification}
-                      disabled={resending}
-                      className="mt-2 flex items-center gap-1.5 text-[13px] font-semibold text-marker-orange disabled:opacity-60"
-                    >
-                      {resending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
-                      {resending ? 'Отправляем...' : 'Отправить письмо повторно'}
-                    </button>
+                  {pinSent && (
+                    <form onSubmit={handlePinSubmit} className="space-y-2">
+                      <p className="text-[12px] text-ink-500">Код отправлен на {user.email}</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={4}
+                          placeholder="0000"
+                          value={pin}
+                          onChange={(e) => {
+                            setPinError('');
+                            setPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+                          }}
+                          className="w-24 rounded-xl border border-ink-200 bg-white px-3 py-2 text-center text-[18px] font-bold tracking-widest text-ink-900 focus:border-brand focus:outline-none"
+                          required
+                        />
+                        <button
+                          type="submit"
+                          disabled={pinLoading || pin.length < 4}
+                          className="flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
+                        >
+                          {pinLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                          Подтвердить
+                        </button>
+                      </div>
+                      {pinError && <p className="text-[12px] text-marker-red">{pinError}</p>}
+                    </form>
                   )}
+                  <button
+                    onClick={resendVerification}
+                    disabled={resending}
+                    className="flex items-center gap-1.5 text-[13px] font-semibold text-marker-orange disabled:opacity-60"
+                  >
+                    {resending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                    {resending ? 'Отправляем...' : pinSent ? 'Отправить код снова' : 'Отправить код на почту'}
+                  </button>
                 </div>
               )}
               <button

@@ -5,7 +5,7 @@ import { X, CheckCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { AuthInput } from './AuthInput'
 
-type View = 'login' | 'register' | 'forgot'
+type View = 'login' | 'register' | 'forgot' | 'verify'
 
 interface AuthSheetProps {
   open: boolean
@@ -20,6 +20,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   PASSWORD_TOO_SHORT: 'Пароль должен содержать не менее 8 символов',
   MISSING_FIELDS: 'Заполните все поля',
   SERVER_ERROR: 'Ошибка сервера. Попробуйте позже',
+  INVALID_PIN: 'Неверный или истёкший код',
 }
 
 function errorText(code: string) {
@@ -39,8 +40,108 @@ function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
   )
 }
 
+// ── Pin Verification View ─────────────────────────────────────────────────────
+function PinView({ email, onClose }: { email: string; onClose: () => void }) {
+  const hydrate = useAuth((s) => s.hydrate)
+  const [pin, setPin] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendDone, setResendDone] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(errorText(data.error))
+        return
+      }
+      await hydrate()
+      onClose()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleResend() {
+    setResendLoading(true)
+    setResendDone(false)
+    try {
+      await fetch('/api/auth/resend-verification', { method: 'POST' })
+      setResendDone(true)
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <h2 className="text-[22px] font-bold text-ink-900">Введите код</h2>
+        <p className="mt-1 text-[14px] text-ink-500">
+          Мы отправили 4-значный код на{' '}
+          <span className="font-medium text-ink-700">{email}</span>
+        </p>
+      </div>
+
+      {error && (
+        <div className="rounded-2xl bg-marker-red/10 px-4 py-3 text-[13px] text-marker-red">
+          {error}
+        </div>
+      )}
+
+      <AuthInput
+        label="Код подтверждения"
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={4}
+        value={pin}
+        onChange={(e) => {
+          setError('')
+          setPin(e.target.value.replace(/\D/g, '').slice(0, 4))
+        }}
+        required
+      />
+
+      <SubmitButton loading={loading} label="Подтвердить" />
+
+      <div className="text-center">
+        {resendDone ? (
+          <p className="text-[13px] text-marker-green">✓ Код отправлен повторно</p>
+        ) : (
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resendLoading}
+            className="text-[13px] text-brand disabled:opacity-60"
+          >
+            {resendLoading ? 'Отправляем...' : 'Отправить код снова'}
+          </button>
+        )}
+      </div>
+    </form>
+  )
+}
+
 // ── Login View ────────────────────────────────────────────────────────────────
-function LoginView({ onSwitch, onClose }: { onSwitch: (v: View) => void; onClose: () => void }) {
+function LoginView({
+  onSwitch,
+  onClose,
+  onVerify,
+}: {
+  onSwitch: (v: View) => void
+  onClose: () => void
+  onVerify: (email: string) => void
+}) {
   const hydrate = useAuth((s) => s.hydrate)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -63,7 +164,11 @@ function LoginView({ onSwitch, onClose }: { onSwitch: (v: View) => void; onClose
         return
       }
       await hydrate()
-      onClose()
+      if (!data.emailVerified) {
+        onVerify(email)
+      } else {
+        onClose()
+      }
     } finally {
       setLoading(false)
     }
@@ -119,7 +224,13 @@ function LoginView({ onSwitch, onClose }: { onSwitch: (v: View) => void; onClose
 }
 
 // ── Register View ─────────────────────────────────────────────────────────────
-function RegisterView({ onSwitch }: { onSwitch: (v: View) => void }) {
+function RegisterView({
+  onSwitch,
+  onVerify,
+}: {
+  onSwitch: (v: View) => void
+  onVerify: (email: string) => void
+}) {
   const hydrate = useAuth((s) => s.hydrate)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -127,7 +238,6 @@ function RegisterView({ onSwitch }: { onSwitch: (v: View) => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [emailError, setEmailError] = useState('')
-  const [done, setDone] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -150,28 +260,10 @@ function RegisterView({ onSwitch }: { onSwitch: (v: View) => void }) {
         return
       }
       await hydrate()
-      setDone(true)
+      onVerify(email)
     } finally {
       setLoading(false)
     }
-  }
-
-  if (done) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-8 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-marker-green/15">
-          <CheckCircle size={32} className="text-marker-green" />
-        </div>
-        <div>
-          <p className="text-[18px] font-bold text-ink-900">Письмо отправлено!</p>
-          <p className="mt-1 text-[14px] text-ink-500">
-            Подтвердите email{' '}
-            <span className="font-medium text-ink-700">{email}</span>{' '}
-            — нажмите на ссылку в письме.
-          </p>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -304,11 +396,16 @@ function ForgotView({ onSwitch }: { onSwitch: (v: View) => void }) {
 // ── Main AuthSheet ─────────────────────────────────────────────────────────────
 export function AuthSheet({ open, onClose }: AuthSheetProps) {
   const [view, setView] = useState<View>('login')
+  const [verifyEmail, setVerifyEmail] = useState('')
 
   function handleClose() {
     onClose()
-    // Reset to login after animation
     setTimeout(() => setView('login'), 300)
+  }
+
+  function handleVerify(email: string) {
+    setVerifyEmail(email)
+    setView('verify')
   }
 
   return (
@@ -361,9 +458,10 @@ export function AuthSheet({ open, onClose }: AuthSheetProps) {
                   exit={{ opacity: 0, x: -12 }}
                   transition={{ duration: 0.18 }}
                 >
-                  {view === 'login' && <LoginView onSwitch={setView} onClose={handleClose} />}
-                  {view === 'register' && <RegisterView onSwitch={setView} />}
+                  {view === 'login' && <LoginView onSwitch={setView} onClose={handleClose} onVerify={handleVerify} />}
+                  {view === 'register' && <RegisterView onSwitch={setView} onVerify={handleVerify} />}
                   {view === 'forgot' && <ForgotView onSwitch={setView} />}
+                  {view === 'verify' && <PinView email={verifyEmail} onClose={handleClose} />}
                 </motion.div>
               </AnimatePresence>
             </div>

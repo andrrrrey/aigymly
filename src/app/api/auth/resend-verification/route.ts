@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { sendVerificationEmail } from '@/lib/email'
@@ -22,13 +21,13 @@ export async function POST() {
     // Remove old verification tokens
     await db.token.deleteMany({ where: { userId: user.id, type: 'EMAIL_VERIFICATION' } })
 
-    const tokenValue = crypto.randomBytes(32).toString('hex')
+    const pin = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
     await db.token.create({
-      data: { userId: user.id, type: 'EMAIL_VERIFICATION', token: tokenValue, expiresAt },
+      data: { userId: user.id, type: 'EMAIL_VERIFICATION', token: pin, expiresAt },
     })
 
-    await sendVerificationEmail(user.email, tokenValue)
+    await sendVerificationEmail(user.email, pin)
 
     return NextResponse.json({ ok: true })
   } catch (err) {
