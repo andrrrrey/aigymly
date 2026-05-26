@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { BottomNav } from '@/components/BottomNav';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { useAuth } from '@/store/auth';
-import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle, Mail, Loader2 } from 'lucide-react';
 
 // Separate component to use useSearchParams inside Suspense
 function BannerFromURL({ onBanner }: { onBanner: (b: 'verified' | 'error' | null) => void }) {
@@ -26,6 +26,19 @@ export default function ProfilePage() {
   const { user, loading, logout } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [banner, setBanner] = useState<'verified' | 'error' | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
+
+  async function resendVerification() {
+    setResending(true);
+    setResendDone(false);
+    try {
+      await fetch('/api/auth/resend-verification', { method: 'POST' });
+      setResendDone(true);
+    } finally {
+      setResending(false);
+    }
+  }
 
   const avatarLetter = user?.email?.[0]?.toUpperCase() ?? 'Г';
 
@@ -95,13 +108,34 @@ export default function ProfilePage() {
         {/* Auth button */}
         {!loading && (
           user ? (
-            <button
-              onClick={() => logout()}
-              className="tappable mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-ink-200 py-3 text-[15px] font-semibold text-ink-700 transition-colors hover:bg-ink-50"
-            >
-              <LogOut size={18} />
-              Выйти
-            </button>
+            <div className="mt-2 space-y-2">
+              {!user.emailVerified && (
+                <div className="rounded-2xl bg-marker-orange/10 px-4 py-3">
+                  <p className="text-[13px] text-marker-orange">
+                    Email не подтверждён. Проверьте почту или отправьте письмо повторно.
+                  </p>
+                  {resendDone ? (
+                    <p className="mt-2 text-[13px] font-medium text-marker-green">✓ Письмо отправлено на {user.email}</p>
+                  ) : (
+                    <button
+                      onClick={resendVerification}
+                      disabled={resending}
+                      className="mt-2 flex items-center gap-1.5 text-[13px] font-semibold text-marker-orange disabled:opacity-60"
+                    >
+                      {resending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                      {resending ? 'Отправляем...' : 'Отправить письмо повторно'}
+                    </button>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => logout()}
+                className="tappable flex w-full items-center justify-center gap-2 rounded-full border border-ink-200 py-3 text-[15px] font-semibold text-ink-700 transition-colors hover:bg-ink-50"
+              >
+                <LogOut size={18} />
+                Выйти
+              </button>
+            </div>
           ) : (
             <button
               onClick={() => setSheetOpen(true)}
