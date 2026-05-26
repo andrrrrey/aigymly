@@ -1,23 +1,25 @@
 import 'server-only'
 import nodemailer from 'nodemailer'
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT ?? 587),
-  secure: Number(process.env.SMTP_PORT) === 465,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
-
-const FROM = process.env.SMTP_FROM ?? 'FitTracker'
-const APP_URL = process.env.APP_URL ?? 'http://localhost:3000'
+function getTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  })
+}
 
 export async function sendVerificationEmail(to: string, token: string) {
-  const link = `${APP_URL}/api/auth/verify-email?token=${token}`
-  await transporter.sendMail({
-    from: FROM,
+  const appUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const from = process.env.SMTP_FROM ?? 'FitTracker'
+  const link = `${appUrl}/api/auth/verify-email?token=${token}`
+
+  await getTransporter().sendMail({
+    from,
     to,
     subject: 'Подтверди email — FitTracker',
     html: `
@@ -34,9 +36,12 @@ export async function sendVerificationEmail(to: string, token: string) {
 }
 
 export async function sendPasswordResetEmail(to: string, token: string) {
-  const link = `${APP_URL}/auth/reset-password?token=${token}`
-  await transporter.sendMail({
-    from: FROM,
+  const appUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const from = process.env.SMTP_FROM ?? 'FitTracker'
+  const link = `${appUrl}/auth/reset-password?token=${token}`
+
+  await getTransporter().sendMail({
+    from,
     to,
     subject: 'Сброс пароля — FitTracker',
     html: `
