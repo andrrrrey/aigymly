@@ -43,6 +43,7 @@ function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
 // ── Pin Verification View ─────────────────────────────────────────────────────
 function PinView({ email, onClose }: { email: string; onClose: () => void }) {
   const hydrate = useAuth((s) => s.hydrate)
+  const markEmailVerified = useAuth((s) => s.markEmailVerified)
   const [pin, setPin] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -64,6 +65,7 @@ function PinView({ email, onClose }: { email: string; onClose: () => void }) {
         setError(errorText(data.error))
         return
       }
+      markEmailVerified()
       await hydrate()
       onClose()
     } finally {

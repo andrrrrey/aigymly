@@ -25,66 +25,10 @@ interface AppState {
   resetQuestionnaire: () => void;
 }
 
-const seedWorkouts = (): Workout[] => {
-  const today = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const in3 = new Date(today);
-  in3.setDate(today.getDate() + 3);
-
-  return [
-    {
-      id: uid(),
-      title: 'Ноги и пресс',
-      date: iso(today),
-      startTime: '10:00',
-      endTime: '10:45',
-      emoji: 'wink',
-      emojiBg: 'gray',
-      marker: 'red',
-      exercises: [],
-    },
-    {
-      id: uid(),
-      title: 'Плавание',
-      date: iso(today),
-      startTime: '18:00',
-      endTime: '19:00',
-      emoji: 'sleepy',
-      emojiBg: 'red',
-      marker: 'cyan',
-      exercises: [],
-    },
-    {
-      id: uid(),
-      title: 'Грудь и трицепс',
-      date: iso(tomorrow),
-      startTime: '09:00',
-      endTime: '10:00',
-      emoji: 'happy',
-      emojiBg: 'yellow',
-      marker: 'purple',
-      exercises: [],
-    },
-    {
-      id: uid(),
-      title: 'Кардио',
-      date: iso(in3),
-      startTime: '07:30',
-      endTime: '08:15',
-      emoji: 'fire',
-      emojiBg: 'orange',
-      marker: 'orange',
-      exercises: [],
-    },
-  ];
-};
-
 export const useApp = create<AppState>()(
   persist(
     (set, get) => ({
-      workouts: seedWorkouts(),
+      workouts: [],
       selectedDate: new Date().toISOString().slice(0, 10),
       questionnaire: {},
 

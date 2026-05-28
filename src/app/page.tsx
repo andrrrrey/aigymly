@@ -9,10 +9,12 @@ import { Calendar } from '@/components/Calendar';
 import { WorkoutCard } from '@/components/WorkoutCard';
 import { BottomNav } from '@/components/BottomNav';
 import { useApp } from '@/store/app';
+import { useAuth } from '@/store/auth';
 
 export default function HomePage() {
   const router = useRouter();
   const { workouts, selectedDate } = useApp();
+  const user = useAuth((s) => s.user);
   const [expanded, setExpanded] = useState(false);
 
   // Show selected day + next 2 days that have workouts
@@ -21,6 +23,9 @@ export default function HomePage() {
     const today = startOfDay(new Date());
     const groups = new Map<string, typeof workouts>();
     workouts
+      .filter((w) =>
+        user ? (w.userEmail === user.email || !w.userEmail) : !w.userEmail
+      )
       .filter((w) => {
         const d = parseISO(w.date);
         return !isAfter(today, d) || isSameDay(d, today);
@@ -39,7 +44,7 @@ export default function HomePage() {
         groups.set(w.date, arr);
       });
     return Array.from(groups.entries());
-  }, [workouts, selectedDate]);
+  }, [workouts, selectedDate, user]);
 
   const handleCreate = () => {
     router.push(`/workout/new?date=${selectedDate}`);

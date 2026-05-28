@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Sparkles, Lock, ChevronRight, Plus } from 'lucide-react';
+import { Sparkles, ChevronRight, Plus } from 'lucide-react';
 import { BottomNav } from '@/components/BottomNav';
 
 export default function ProgramsPage() {
@@ -49,21 +49,6 @@ export default function ProgramsPage() {
           </button>
         </div>
 
-        <div className="space-y-2">
-          <ProgramCard
-            title="Демо программа"
-            author="AI · базовая"
-            workouts={8}
-            colorClass="bg-marker-blue/15"
-          />
-          <ProgramCard
-            title="Спина и осанка"
-            author="Моя программа"
-            workouts={18}
-            colorClass="bg-marker-purple/15"
-          />
-        </div>
-
         <div className="mt-8 rounded-2xl border border-dashed border-ink-200 p-5 text-center">
           <p className="text-[13px] text-ink-500">
             Здесь будут все твои программы тренировок — как созданные руками, так и сгенерированные AI
@@ -73,38 +58,5 @@ export default function ProgramsPage() {
 
       <BottomNav />
     </>
-  );
-}
-
-function ProgramCard({
-  title,
-  author,
-  workouts,
-  colorClass,
-}: {
-  title: string;
-  author: string;
-  workouts: number;
-  colorClass: string;
-}) {
-  return (
-    <div className="tappable flex items-center gap-3 rounded-2xl bg-white p-3 shadow-card">
-      <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-xl ${colorClass}`}>
-        <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-          <path
-            d="M4 10v6M22 10v6M7 8v10M19 8v10M9 13h8"
-            stroke="#3B4452"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
-      <div className="min-w-0 flex-1">
-        <h3 className="truncate text-[16px] font-semibold text-ink-900">{title}</h3>
-        <p className="text-[12px] text-ink-400">{author}</p>
-        <p className="mt-0.5 text-[13px] font-medium text-brand">{workouts} тренировок</p>
-      </div>
-      <Lock size={18} className="shrink-0 text-ink-300" />
-    </div>
   );
 }

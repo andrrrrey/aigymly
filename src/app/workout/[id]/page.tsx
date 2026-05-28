@@ -6,6 +6,7 @@ import { ChevronLeft, Calendar as CalendarIcon, Bell, Settings, MoreHorizontal }
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useApp } from '@/store/app';
+import { useAuth } from '@/store/auth';
 import { uid } from '@/lib/utils';
 import type { Exercise, MarkerColor, WorkoutEmoji } from '@/types';
 import { ExerciseRow } from '@/components/ExerciseRow';
@@ -24,6 +25,7 @@ export default function WorkoutPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const { workouts, addWorkout, updateWorkout, deleteWorkout, addExercise } = useApp();
+  const user = useAuth((s) => s.user);
 
   const isNew = params.id === 'new';
   const initialDate = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
@@ -65,6 +67,7 @@ export default function WorkoutPage() {
       marker: 'blue' as MarkerColor,
       exercises: [],
       notifyMinutesBefore: notify,
+      userEmail: user?.email,
     });
     setWorkoutId(id);
     return id;
@@ -128,6 +131,11 @@ export default function WorkoutPage() {
 
       <main className="no-scrollbar scroll-smooth-momentum flex-1 overflow-y-auto bg-white">
         <div className="space-y-5 px-5 pb-32 pt-5">
+          {!user && (
+            <div className="rounded-2xl bg-marker-orange/10 px-4 py-3 text-[13px] text-marker-orange">
+              Тренировка не сохранится и может удалиться — войдите в профиль, чтобы сохранить её
+            </div>
+          )}
           {/* Title row */}
           <div className="flex items-start justify-between gap-3">
             <input

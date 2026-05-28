@@ -23,7 +23,7 @@ function BannerFromURL({ onBanner }: { onBanner: (b: 'verified' | 'error' | null
 }
 
 export default function ProfilePage() {
-  const { user, loading, logout, hydrate } = useAuth();
+  const { user, loading, logout, hydrate, markEmailVerified } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [banner, setBanner] = useState<'verified' | 'error' | null>(null);
   const [resending, setResending] = useState(false);
@@ -63,6 +63,7 @@ export default function ProfilePage() {
         setPinError(data.error === 'INVALID_PIN' ? 'Неверный или истёкший код' : 'Ошибка сервера');
         return;
       }
+      markEmailVerified();
       await hydrate();
       setBanner('verified');
     } finally {
