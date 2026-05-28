@@ -23,6 +23,8 @@ export async function sendVerificationEmail(to: string, pin: string) {
     subject: 'Код подтверждения — Ai Gymly',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#111827">Ai Gymly — умный дневник тренировок</p>
+        <p style="margin:0 0 24px;font-size:13px;color:#6b7280">Помогаем не слиться на пути к цели</p>
         <h2 style="margin:0 0 16px">Подтвердите email</h2>
         <p>Введите этот код в приложении для подтверждения вашего адреса электронной почты:</p>
         <div style="margin:24px 0;text-align:center">
@@ -45,6 +47,8 @@ export async function sendPasswordResetEmail(to: string, token: string) {
     subject: 'Сброс пароля — Ai Gymly',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#111827">Ai Gymly — умный дневник тренировок</p>
+        <p style="margin:0 0 24px;font-size:13px;color:#6b7280">Помогаем не слиться на пути к цели</p>
         <h2 style="margin:0 0 16px">Сброс пароля</h2>
         <p>Вы запросили сброс пароля для аккаунта Ai Gymly.</p>
         <a href="${link}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#3b82f6;color:#fff;text-decoration:none;border-radius:12px;font-weight:600">

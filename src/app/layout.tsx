@@ -4,9 +4,14 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { AuthProvider } from '@/components/AuthProvider';
 
 export const metadata: Metadata = {
-  title: 'Ai Gymly — трекер тренировок',
-  description: 'Трекер тренировок с AI-программой',
+  title: 'Ai Gymly — умный дневник тренировок',
+  description: 'Помогаем не слиться на пути к цели',
   manifest: '/manifest.webmanifest',
+  openGraph: {
+    title: 'Ai Gymly — умный дневник тренировок',
+    description: 'Помогаем не слиться на пути к цели',
+    type: 'website',
+  },
   appleWebApp: {
     capable: true,
     title: 'Ai Gymly',
