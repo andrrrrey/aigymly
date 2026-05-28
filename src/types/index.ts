@@ -44,6 +44,7 @@ export interface Workout {
   notes?: string;
   notifyMinutesBefore?: number;
   completed?: boolean;
+  userEmail?: string;
 }
 
 // AI questionnaire

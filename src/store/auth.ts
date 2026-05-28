@@ -11,6 +11,7 @@ interface AuthState {
   loading: boolean
   hydrate: () => Promise<void>
   logout: () => Promise<void>
+  markEmailVerified: () => void
 }
 
 export const useAuth = create<AuthState>((set) => ({
@@ -35,4 +36,7 @@ export const useAuth = create<AuthState>((set) => ({
     await fetch('/api/auth/logout', { method: 'POST' })
     set({ user: null })
   },
+
+  markEmailVerified: () =>
+    set((s) => s.user ? { user: { ...s.user, emailVerified: true } } : {}),
 }))
