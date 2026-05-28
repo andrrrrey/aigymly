@@ -1,4 +1,4 @@
-const CACHE = 'fittracker-v1';
+const CACHE = 'aigymly-v1';
 const APP_SHELL = ['/'];
 
 self.addEventListener('install', (event) => {

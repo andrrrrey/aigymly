@@ -14,13 +14,13 @@ function getTransporter() {
 }
 
 export async function sendVerificationEmail(to: string, pin: string) {
-  const from = process.env['SMTP_FROM'] ?? 'FitTracker'
+  const from = process.env['SMTP_FROM'] ?? 'Ai Gymly'
   console.log('[email] sendVerificationEmail pin =', pin)
 
   await getTransporter().sendMail({
     from,
     to,
-    subject: 'Код подтверждения — FitTracker',
+    subject: 'Код подтверждения — Ai Gymly',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="margin:0 0 16px">Подтвердите email</h2>
@@ -36,17 +36,17 @@ export async function sendVerificationEmail(to: string, pin: string) {
 
 export async function sendPasswordResetEmail(to: string, token: string) {
   const appUrl = process.env['APP_URL'] ?? 'http://localhost:3000'
-  const from = process.env['SMTP_FROM'] ?? 'FitTracker'
+  const from = process.env['SMTP_FROM'] ?? 'Ai Gymly'
   const link = `${appUrl}/auth/reset-password?token=${token}`
 
   await getTransporter().sendMail({
     from,
     to,
-    subject: 'Сброс пароля — FitTracker',
+    subject: 'Сброс пароля — Ai Gymly',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="margin:0 0 16px">Сброс пароля</h2>
-        <p>Вы запросили сброс пароля для аккаунта FitTracker.</p>
+        <p>Вы запросили сброс пароля для аккаунта Ai Gymly.</p>
         <a href="${link}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#3b82f6;color:#fff;text-decoration:none;border-radius:12px;font-weight:600">
           Сбросить пароль
         </a>
