@@ -131,11 +131,6 @@ export default function WorkoutPage() {
 
       <main className="no-scrollbar scroll-smooth-momentum flex-1 overflow-y-auto bg-white">
         <div className="space-y-5 px-5 pb-32 pt-5">
-          {!user && (
-            <div className="rounded-2xl bg-marker-orange/10 px-4 py-3 text-[13px] text-marker-orange">
-              Тренировка не сохранится и может удалиться — войдите в профиль, чтобы сохранить её
-            </div>
-          )}
           {/* Title row */}
           <div className="flex items-start justify-between gap-3">
             <input

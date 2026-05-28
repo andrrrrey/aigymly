@@ -10,12 +10,14 @@ import { WorkoutCard } from '@/components/WorkoutCard';
 import { BottomNav } from '@/components/BottomNav';
 import { useApp } from '@/store/app';
 import { useAuth } from '@/store/auth';
+import { AuthSheet } from '@/components/auth/AuthSheet';
 
 export default function HomePage() {
   const router = useRouter();
   const { workouts, selectedDate } = useApp();
   const user = useAuth((s) => s.user);
   const [expanded, setExpanded] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   // Show selected day + next 2 days that have workouts
   const groupedWorkouts = useMemo(() => {
@@ -47,6 +49,10 @@ export default function HomePage() {
   }, [workouts, selectedDate, user]);
 
   const handleCreate = () => {
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
     router.push(`/workout/new?date=${selectedDate}`);
   };
 
@@ -95,6 +101,7 @@ export default function HomePage() {
       </main>
 
       <BottomNav />
+      <AuthSheet open={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
 }
