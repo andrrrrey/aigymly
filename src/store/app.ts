@@ -130,7 +130,7 @@ export const useApp = create<AppState>()(
       resetQuestionnaire: () => set({ questionnaire: {} }),
     }),
     {
-      name: 'fittracker-store',
+      name: 'aigymly-store',
       storage: createJSONStorage(() => localStorage),
     }
   )

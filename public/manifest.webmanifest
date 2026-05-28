@@ -1,6 +1,6 @@
 {
-  "name": "FitTracker — трекер тренировок",
-  "short_name": "FitTracker",
+  "name": "Ai Gymly — трекер тренировок",
+  "short_name": "Ai Gymly",
   "description": "Трекер тренировок с AI-программой",
   "start_url": "/",
   "display": "standalone",

@@ -4,12 +4,12 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { AuthProvider } from '@/components/AuthProvider';
 
 export const metadata: Metadata = {
-  title: 'FitTracker — трекер тренировок',
+  title: 'Ai Gymly — трекер тренировок',
   description: 'Трекер тренировок с AI-программой',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'FitTracker',
+    title: 'Ai Gymly',
     statusBarStyle: 'default',
   },
 };
