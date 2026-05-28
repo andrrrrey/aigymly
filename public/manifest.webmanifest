@@ -1,7 +1,7 @@
 {
-  "name": "Ai Gymly — трекер тренировок",
+  "name": "Ai Gymly — умный дневник тренировок",
   "short_name": "Ai Gymly",
-  "description": "Трекер тренировок с AI-программой",
+  "description": "Помогаем не слиться на пути к цели",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F7F8FA",
