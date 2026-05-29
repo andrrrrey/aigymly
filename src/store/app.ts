@@ -3,14 +3,17 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Workout, Exercise, ExerciseSet, QuestionnaireAnswers } from '@/types';
+import type { ExerciseTemplate } from '@/lib/exercises';
 import { uid } from '@/lib/utils';
 
 interface AppState {
   workouts: Workout[];
   selectedDate: string; // ISO yyyy-MM-dd
   questionnaire: QuestionnaireAnswers;
+  customExercises: ExerciseTemplate[];
 
   setSelectedDate: (date: string) => void;
+  addCustomExercise: (template: ExerciseTemplate) => void;
   addWorkout: (workout: Omit<Workout, 'id'>) => string;
   updateWorkout: (id: string, patch: Partial<Workout>) => void;
   deleteWorkout: (id: string) => void;
@@ -31,8 +34,12 @@ export const useApp = create<AppState>()(
       workouts: [],
       selectedDate: new Date().toISOString().slice(0, 10),
       questionnaire: {},
+      customExercises: [],
 
       setSelectedDate: (date) => set({ selectedDate: date }),
+
+      addCustomExercise: (template) =>
+        set((s) => ({ customExercises: [...s.customExercises, template] })),
 
       addWorkout: (workout) => {
         const id = uid();
