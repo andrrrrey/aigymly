@@ -68,22 +68,24 @@ export function MuscleGroupIcon({ group, size = 28 }: Props) {
     case 'Ягодицы':
       return (
         <svg {...svg}>
-          {/* Side view of hip/lower body */}
-          {/* Lower back / spine curve */}
-          <path d="M24 4 C24 8 25 13 23 19" stroke={BODY} strokeWidth="2" strokeLinecap="round" />
-          {/* Hip crest */}
-          <path d="M23 19 Q29 22 28 30" stroke={BODY} strokeWidth="2" strokeLinecap="round" />
-          {/* Under-glute / thigh transition */}
-          <path d="M28 30 Q26 38 22 42" stroke={BODY} strokeWidth="2" strokeLinecap="round" />
-          {/* Front body line (hip flexor side) */}
-          <path d="M23 19 Q17 21 17 30 Q17 37 19 42" stroke={BODY} strokeWidth="2" strokeLinecap="round" />
-          {/* Waist indent */}
-          <path d="M24 13 Q21 16 23 19" stroke={BODY} strokeWidth="1.5" strokeLinecap="round" />
-          {/* Glute muscle — large orange teardrop */}
-          <path d="M23 20 Q31 24 30 34 Q28 41 22 42 Q16 41 17 33 Q17 24 23 20 Z" fill={MUSCLE} />
-          {/* Leg continuing down */}
-          <path d="M20 42 L19 52" stroke={BODY} strokeWidth="6" strokeLinecap="round" />
-          <path d="M24 44 L23 52" stroke={BODY} strokeWidth="4.5" strokeLinecap="round" />
+          {/* Side/rear view — zoomed on hip & glute */}
+          {/* Lower back coming from top */}
+          <path d="M29 4 C30 9 29.5 14 27 19" stroke={BODY} strokeWidth="2.5" strokeLinecap="round" />
+          {/* Iliac crest / top of hip */}
+          <path d="M27 19 C24 17 20 17 18 19" stroke={BODY} strokeWidth="2.2" strokeLinecap="round" />
+          {/* Front hip / abdomen line */}
+          <path d="M18 19 C15 23 15 31 17 39" stroke={BODY} strokeWidth="2.5" strokeLinecap="round" />
+          {/* Under-glute / thigh fold */}
+          <path d="M17 39 C19 43 24 45 29 42" stroke={BODY} strokeWidth="2.2" strokeLinecap="round" />
+          {/* Back of thigh going down */}
+          <path d="M29 42 C30 46 29 49 28 52" stroke={BODY} strokeWidth="2.5" strokeLinecap="round" />
+          {/* Glute muscle — large prominent rounded shield */}
+          <path
+            d="M27 20 C35 24 36 34 33 41 C31 45 26 46 21 43 C16 40 15 31 18 25 C20 21 23 19 27 20 Z"
+            fill={MUSCLE}
+          />
+          {/* Front leg (thigh continuing down) */}
+          <path d="M17 40 L16 52" stroke={BODY} strokeWidth="6" strokeLinecap="round" />
         </svg>
       );
 
@@ -135,30 +137,27 @@ export function MuscleGroupIcon({ group, size = 28 }: Props) {
         </svg>
       );
 
-    /* ── Кардио (Cardio) — chest with anatomical heart ── */
+    /* ── Кардио (Cardio) — chest with anatomical heart on RIGHT ── */
     case 'Кардио':
       return (
         <svg {...svg}>
-          {/* Same torso as chest icon */}
           <ellipse cx="20" cy="6.5" rx="5" ry="5.5" fill={BODY} />
           <rect x="17.5" y="11.5" width="5" height="3" rx="1" fill={BODY} />
           <path d="M8 17 C6 19 5 25 6 32" stroke={BODY} strokeWidth="5" strokeLinecap="round" />
           <path d="M32 17 C34 19 35 25 34 32" stroke={BODY} strokeWidth="5" strokeLinecap="round" />
           <path d="M8 17 C8 26 9 34 12 41 L28 41 C31 34 32 26 32 17 L29.5 15 Q25 13 22.5 14 L17.5 14 Q15 13 10.5 15 Z" fill={BODY} />
-          {/* Anatomical heart on left chest */}
-          {/* Aorta / top vessels */}
-          <path d="M16 18 C15.5 15.5 15 14 16 13" stroke={MUSCLE} strokeWidth="1.8" strokeLinecap="round" />
-          <path d="M19 18.5 C19.5 16 19.5 14.5 19 13.5" stroke={MUSCLE} strokeWidth="1.4" strokeLinecap="round" />
-          {/* Main heart body — two-lobe shape */}
+          {/* Aorta vessels — right side of chest (viewer's right = heart's anatomical side) */}
+          <path d="M22 18 C21.5 15.5 21 14 22 13" stroke={MUSCLE} strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M25.5 18.5 C26 16 26 14.5 25.5 13.5" stroke={MUSCLE} strokeWidth="1.4" strokeLinecap="round" />
+          {/* Heart body — two-lobe anatomical shape */}
           <path
-            d="M11.5 22.5 C11 19 12.5 17 14.5 17.5 C15.5 17.8 16.5 18.8 17 20
-               C17 18.8 18 17.8 19.5 17.5 C21.5 17 23 19 22.5 22.5
-               C22 26.5 17 31 17 31
-               C17 31 11.5 26.5 11.5 22.5 Z"
+            d="M17.5 22.5 C17 19 18.5 17 20.5 17.5 C21.5 17.8 22.5 18.8 23 20
+               C23 18.8 24 17.8 25.5 17.5 C27.5 17 29 19 28.5 22.5
+               C28 26.5 23 31 23 31
+               C23 31 17.5 26.5 17.5 22.5 Z"
             fill={MUSCLE}
           />
-          {/* Inner highlight for depth */}
-          <path d="M15 23 Q14 22 13.5 23.5" stroke="#E06010" strokeWidth="0.9" strokeLinecap="round" />
+          <path d="M21 23 Q20 22 19.5 23.5" stroke="#D45500" strokeWidth="0.9" strokeLinecap="round" />
         </svg>
       );
 
@@ -170,46 +169,58 @@ export function MuscleGroupIcon({ group, size = 28 }: Props) {
           <ellipse cx="20" cy="5.5" rx="5.5" ry="6" fill={BODY} />
           {/* Neck */}
           <rect x="17.5" y="11" width="5" height="3" rx="1" fill={BODY} />
-          {/* Torso — orange (whole body highlighted like a top) */}
+          {/* Torso — orange */}
           <path
             d="M13.5 14 C12 20 12 26 13 31 L27 31 C28 26 28 20 26.5 14 Q23 13 20 13 Q17 13 13.5 14 Z"
             fill={MUSCLE}
           />
-          {/* Left arm resting on left knee */}
-          <path d="M13 18 C10.5 22 9 27 8 33" stroke={BODY} strokeWidth="5" strokeLinecap="round" />
-          {/* Right arm */}
-          <path d="M27 18 C29.5 22 31 27 32 33" stroke={BODY} strokeWidth="5" strokeLinecap="round" />
-          {/* Left shin crossing to the right (lotus) */}
-          <path d="M14 31 C15 36 18 40 23 43" stroke={BODY} strokeWidth="6" strokeLinecap="round" />
-          {/* Right shin crossing to the left (lotus) */}
-          <path d="M26 31 C25 36 22 40 17 43" stroke={BODY} strokeWidth="6" strokeLinecap="round" />
-          {/* Left foot (visible on right) */}
-          <ellipse cx="25" cy="44" rx="5" ry="3" fill={BODY} />
-          {/* Right foot (visible on left) */}
-          <ellipse cx="15" cy="44" rx="5" ry="3" fill={BODY} />
+          {/* Left arm down to left knee */}
+          <path d="M13 18 C10.5 21 8.5 25 7 30" stroke={BODY} strokeWidth="5" strokeLinecap="round" />
+          {/* Right arm down to right knee */}
+          <path d="M27 18 C29.5 21 31.5 25 33 30" stroke={BODY} strokeWidth="5" strokeLinecap="round" />
+          {/* Wide thigh base — left thigh going out to the left */}
+          <path d="M14 31 C11 32 8 33 6 34" stroke={BODY} strokeWidth="5.5" strokeLinecap="round" />
+          {/* Wide thigh base — right thigh going out to the right */}
+          <path d="M26 31 C29 32 32 33 34 34" stroke={BODY} strokeWidth="5.5" strokeLinecap="round" />
+          {/* Left shin: crosses from left knee → right center */}
+          <path d="M6 34 C9 38 14 41 20 43" stroke={BODY} strokeWidth="5.5" strokeLinecap="round" />
+          {/* Right shin: crosses from right knee → left center (drawn on top) */}
+          <path d="M34 34 C31 38 26 41 20 43" stroke={BODY} strokeWidth="5.5" strokeLinecap="round" />
+          {/* Left foot (on right side, under right shin) */}
+          <ellipse cx="22" cy="44.5" rx="5" ry="3" fill={BODY} />
+          {/* Right foot (on left side, under left shin) */}
+          <ellipse cx="18" cy="44.5" rx="5" ry="3" fill={BODY} />
         </svg>
       );
 
-    /* ── Релакс (Relax) — back + massage hands ─── */
+    /* ── Релакс (Relax) — person lying prone + massage hands ── */
     case 'Релакс':
       return (
         <svg {...svg}>
-          {/* Back view of body (lying / standing) */}
-          <ellipse cx="20" cy="6.5" rx="5" ry="5.5" fill={BODY} />
-          <rect x="17.5" y="11.5" width="5" height="3" rx="1" fill={BODY} />
-          <path d="M8 17 C6 19 5 25 6 32" stroke={BODY} strokeWidth="5" strokeLinecap="round" />
-          <path d="M32 17 C34 19 35 25 34 32" stroke={BODY} strokeWidth="5" strokeLinecap="round" />
-          <path d="M8 17 C8 26 9 34 12 41 L28 41 C31 34 32 26 32 17 L29.5 15 Q25 13 22.5 14 L17.5 14 Q15 13 10.5 15 Z" fill={BODY} />
-          <line x1="20" y1="14" x2="20" y2="41" stroke="#A8B8C2" strokeWidth="1" />
-          {/* Lower back / lumbar area — orange */}
-          <path d="M11 28 Q20 26 29 28 L29 37 Q20 39 11 37 Z" fill={MUSCLE} />
-          {/* Massage hands — two pairs pressing into lower back */}
-          {/* Left pair */}
-          <path d="M13 24 L12.5 29" stroke="#8FA0AC" strokeWidth="3.5" strokeLinecap="round" />
-          <path d="M16 23 L15.5 28" stroke="#8FA0AC" strokeWidth="3.5" strokeLinecap="round" />
-          {/* Right pair */}
-          <path d="M24 23 L24.5 28" stroke="#8FA0AC" strokeWidth="3.5" strokeLinecap="round" />
-          <path d="M27 24 L27.5 29" stroke="#8FA0AC" strokeWidth="3.5" strokeLinecap="round" />
+          {/* Massage hands descending from above */}
+          {/* Left wrist/forearm */}
+          <path d="M11 5 L10 21" stroke="#9AAAB5" strokeWidth="5" strokeLinecap="round" />
+          <path d="M16 4 L15 20" stroke="#9AAAB5" strokeWidth="4.5" strokeLinecap="round" />
+          {/* Fingers spread at bottom of hands */}
+          <path d="M9.5 21 L9 25" stroke="#9AAAB5" strokeWidth="2.8" strokeLinecap="round" />
+          <path d="M12 21 L11.5 25" stroke="#9AAAB5" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M15.5 21 L15.5 25" stroke="#9AAAB5" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M18 21 L18.5 25" stroke="#9AAAB5" strokeWidth="2.3" strokeLinecap="round" />
+
+          {/* Person lying face down */}
+          {/* Head (side profile) on the right */}
+          <ellipse cx="31" cy="34" rx="6" ry="7" fill={BODY} />
+          {/* Ear detail */}
+          <path d="M25.5 32 C24.5 34 25 36 26 36" stroke="#A8B8C2" strokeWidth="1.2" fill="none" />
+          {/* Neck connecting to torso */}
+          <path d="M25 33 L22 34" stroke={BODY} strokeWidth="4" strokeLinecap="round" />
+          {/* Torso (horizontal, going left) */}
+          <rect x="5" y="28" width="18" height="12" rx="3" fill={BODY} />
+          {/* Legs going off to the left */}
+          <path d="M6 28 L2 26" stroke={BODY} strokeWidth="5.5" strokeLinecap="round" />
+          <path d="M6 40 L2 42" stroke={BODY} strokeWidth="5.5" strokeLinecap="round" />
+          {/* Orange lower back / lumbar area */}
+          <rect x="5.5" y="28.5" width="8.5" height="11" rx="2" fill={MUSCLE} />
         </svg>
       );
 
