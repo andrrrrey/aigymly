@@ -6,7 +6,6 @@ import { ChevronLeft, Calendar as CalendarIcon, Bell, Settings, MoreHorizontal }
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useApp } from '@/store/app';
-import { useAuth } from '@/store/auth';
 import { uid } from '@/lib/utils';
 import type { Exercise, MarkerColor, WorkoutEmoji } from '@/types';
 import { ExerciseRow } from '@/components/ExerciseRow';
@@ -25,7 +24,6 @@ export default function WorkoutPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const { workouts, addWorkout, updateWorkout, deleteWorkout, addExercise } = useApp();
-  const user = useAuth((s) => s.user);
 
   const isNew = params.id === 'new';
   const initialDate = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
@@ -67,7 +65,6 @@ export default function WorkoutPage() {
       marker: 'blue' as MarkerColor,
       exercises: [],
       notifyMinutesBefore: notify,
-      userEmail: user?.email,
     });
     setWorkoutId(id);
     return id;

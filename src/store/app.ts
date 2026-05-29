@@ -14,6 +14,8 @@ interface AppState {
 
   setSelectedDate: (date: string) => void;
   addCustomExercise: (template: ExerciseTemplate) => void;
+  loadWorkouts: () => Promise<void>;
+  clearWorkouts: () => void;
   addWorkout: (workout: Omit<Workout, 'id'>) => string;
   updateWorkout: (id: string, patch: Partial<Workout>) => void;
   deleteWorkout: (id: string) => void;
@@ -26,6 +28,26 @@ interface AppState {
 
   updateQuestionnaire: (patch: Partial<QuestionnaireAnswers>) => void;
   resetQuestionnaire: () => void;
+}
+
+function syncCreate(workout: Workout) {
+  fetch('/api/workouts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(workout),
+  }).catch(console.error);
+}
+
+function syncUpdate(id: string, patch: Partial<Workout>) {
+  fetch(`/api/workouts/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  }).catch(console.error);
+}
+
+function syncDelete(id: string) {
+  fetch(`/api/workouts/${id}`, { method: 'DELETE' }).catch(console.error);
 }
 
 export const useApp = create<AppState>()(
@@ -41,39 +63,67 @@ export const useApp = create<AppState>()(
       addCustomExercise: (template) =>
         set((s) => ({ customExercises: [...s.customExercises, template] })),
 
+      loadWorkouts: async () => {
+        try {
+          const res = await fetch('/api/workouts');
+          if (res.ok) {
+            const workouts: Workout[] = await res.json();
+            set({ workouts });
+          } else if (res.status === 401) {
+            set({ workouts: [] });
+          }
+        } catch (err) {
+          console.error('[loadWorkouts]', err);
+        }
+      },
+
+      clearWorkouts: () => set({ workouts: [] }),
+
       addWorkout: (workout) => {
         const id = uid();
-        set((s) => ({ workouts: [...s.workouts, { ...workout, id }] }));
+        const full: Workout = { ...workout, id };
+        set((s) => ({ workouts: [...s.workouts, full] }));
+        syncCreate(full);
         return id;
       },
 
-      updateWorkout: (id, patch) =>
+      updateWorkout: (id, patch) => {
         set((s) => ({
           workouts: s.workouts.map((w) => (w.id === id ? { ...w, ...patch } : w)),
-        })),
+        }));
+        syncUpdate(id, patch);
+      },
 
-      deleteWorkout: (id) =>
-        set((s) => ({ workouts: s.workouts.filter((w) => w.id !== id) })),
+      deleteWorkout: (id) => {
+        set((s) => ({ workouts: s.workouts.filter((w) => w.id !== id) }));
+        syncDelete(id);
+      },
 
       getWorkout: (id) => get().workouts.find((w) => w.id === id),
 
-      addExercise: (workoutId, exercise) =>
+      addExercise: (workoutId, exercise) => {
         set((s) => ({
           workouts: s.workouts.map((w) =>
             w.id === workoutId ? { ...w, exercises: [...w.exercises, exercise] } : w
           ),
-        })),
+        }));
+        const updated = get().workouts.find((w) => w.id === workoutId);
+        if (updated) syncUpdate(workoutId, { exercises: updated.exercises });
+      },
 
-      removeExercise: (workoutId, exerciseId) =>
+      removeExercise: (workoutId, exerciseId) => {
         set((s) => ({
           workouts: s.workouts.map((w) =>
             w.id === workoutId
               ? { ...w, exercises: w.exercises.filter((e) => e.id !== exerciseId) }
               : w
           ),
-        })),
+        }));
+        const updated = get().workouts.find((w) => w.id === workoutId);
+        if (updated) syncUpdate(workoutId, { exercises: updated.exercises });
+      },
 
-      addSet: (workoutId, exerciseId) =>
+      addSet: (workoutId, exerciseId) => {
         set((s) => ({
           workouts: s.workouts.map((w) => {
             if (w.id !== workoutId) return w;
@@ -96,9 +146,12 @@ export const useApp = create<AppState>()(
               }),
             };
           }),
-        })),
+        }));
+        const updated = get().workouts.find((w) => w.id === workoutId);
+        if (updated) syncUpdate(workoutId, { exercises: updated.exercises });
+      },
 
-      updateSet: (workoutId, exerciseId, setId, patch) =>
+      updateSet: (workoutId, exerciseId, setId, patch) => {
         set((s) => ({
           workouts: s.workouts.map((w) => {
             if (w.id !== workoutId) return w;
@@ -115,9 +168,12 @@ export const useApp = create<AppState>()(
               }),
             };
           }),
-        })),
+        }));
+        const updated = get().workouts.find((w) => w.id === workoutId);
+        if (updated) syncUpdate(workoutId, { exercises: updated.exercises });
+      },
 
-      removeSet: (workoutId, exerciseId, setId) =>
+      removeSet: (workoutId, exerciseId, setId) => {
         set((s) => ({
           workouts: s.workouts.map((w) => {
             if (w.id !== workoutId) return w;
@@ -129,7 +185,10 @@ export const useApp = create<AppState>()(
               }),
             };
           }),
-        })),
+        }));
+        const updated = get().workouts.find((w) => w.id === workoutId);
+        if (updated) syncUpdate(workoutId, { exercises: updated.exercises });
+      },
 
       updateQuestionnaire: (patch) =>
         set((s) => ({ questionnaire: { ...s.questionnaire, ...patch } })),
@@ -139,6 +198,12 @@ export const useApp = create<AppState>()(
     {
       name: 'aigymly-store',
       storage: createJSONStorage(() => localStorage),
+      // Exclude workouts from localStorage — they live in the database
+      partialize: (state) => ({
+        selectedDate: state.selectedDate,
+        questionnaire: state.questionnaire,
+        customExercises: state.customExercises,
+      }),
     }
   )
 );

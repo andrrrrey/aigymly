@@ -25,9 +25,6 @@ export default function HomePage() {
     const today = startOfDay(new Date());
     const groups = new Map<string, typeof workouts>();
     workouts
-      .filter((w) =>
-        user ? (w.userEmail === user.email || !w.userEmail) : !w.userEmail
-      )
       .filter((w) => {
         const d = parseISO(w.date);
         return !isAfter(today, d) || isSameDay(d, today);
@@ -46,7 +43,7 @@ export default function HomePage() {
         groups.set(w.date, arr);
       });
     return Array.from(groups.entries());
-  }, [workouts, selectedDate, user]);
+  }, [workouts, selectedDate]);
 
   const handleCreate = () => {
     if (!user) {
