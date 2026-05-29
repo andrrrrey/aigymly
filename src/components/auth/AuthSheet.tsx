@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X, CheckCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '@/store/auth'
@@ -44,6 +45,7 @@ function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
 function PinView({ email, onClose }: { email: string; onClose: () => void }) {
   const hydrate = useAuth((s) => s.hydrate)
   const markEmailVerified = useAuth((s) => s.markEmailVerified)
+  const router = useRouter()
   const [pin, setPin] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -67,6 +69,7 @@ function PinView({ email, onClose }: { email: string; onClose: () => void }) {
       }
       markEmailVerified()
       await hydrate()
+      router.refresh()
       onClose()
     } finally {
       setLoading(false)

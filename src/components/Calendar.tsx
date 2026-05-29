@@ -19,6 +19,7 @@ import { ru } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn, MARKER_HEX } from '@/lib/utils';
 import { useApp } from '@/store/app';
+import { useAuth } from '@/store/auth';
 import type { Workout } from '@/types';
 
 const WEEKDAYS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
@@ -31,19 +32,22 @@ interface Props {
 
 export function Calendar({ expanded, onToggle }: Props) {
   const { selectedDate, setSelectedDate, workouts } = useApp();
+  const user = useAuth((s) => s.user);
   const selected = parseISO(selectedDate);
   const [viewMonth, setViewMonth] = useState(selected);
 
-  // Markers map: yyyy-MM-dd -> distinct colors
+  // Markers map: yyyy-MM-dd -> distinct colors (only for current user's workouts)
   const markersByDate = useMemo(() => {
     const m = new Map<string, string[]>();
-    workouts.forEach((w) => {
-      const arr = m.get(w.date) ?? [];
-      if (!arr.includes(w.marker)) arr.push(w.marker);
-      m.set(w.date, arr);
-    });
+    workouts
+      .filter((w) => (user ? w.userEmail === user.email : !w.userEmail))
+      .forEach((w) => {
+        const arr = m.get(w.date) ?? [];
+        if (!arr.includes(w.marker)) arr.push(w.marker);
+        m.set(w.date, arr);
+      });
     return m;
-  }, [workouts]);
+  }, [workouts, user]);
 
   // Compute weeks for current view month
   const monthWeeks = useMemo(() => {
