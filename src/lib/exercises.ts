@@ -52,6 +52,13 @@ export const EXERCISE_LIBRARY: ExerciseTemplate[] = [
   { id: 'leg-raise', name: 'Hanging Leg Raise', nameRu: 'Подъём ног в висе', kind: 'strength', muscleGroup: 'Core', muscleGroupRu: 'Пресс' },
   { id: 'russian-twist', name: 'Russian Twist', nameRu: 'Русский твист', kind: 'strength', muscleGroup: 'Core', muscleGroupRu: 'Пресс' },
 
+  // Glutes
+  { id: 'glute-bridge', name: 'Glute Bridge', nameRu: 'Ягодичный мостик', kind: 'strength', muscleGroup: 'Glutes', muscleGroupRu: 'Ягодицы' },
+  { id: 'hip-thrust', name: 'Hip Thrust', nameRu: 'Тяга бедрами', kind: 'strength', muscleGroup: 'Glutes', muscleGroupRu: 'Ягодицы' },
+  { id: 'curtsy-lunge', name: 'Curtsy Lunge', nameRu: 'Реверанс-выпад', kind: 'strength', muscleGroup: 'Glutes', muscleGroupRu: 'Ягодицы' },
+  { id: 'hip-abduction', name: 'Hip Abduction Machine', nameRu: 'Разведение ног', kind: 'strength', muscleGroup: 'Glutes', muscleGroupRu: 'Ягодицы' },
+  { id: 'donkey-kick', name: 'Donkey Kick', nameRu: 'Отведение ноги назад', kind: 'strength', muscleGroup: 'Glutes', muscleGroupRu: 'Ягодицы' },
+
   // Cardio
   { id: 'running', name: 'Running', nameRu: 'Бег', kind: 'cardio', muscleGroup: 'Cardio', muscleGroupRu: 'Кардио' },
   { id: 'cycling', name: 'Cycling', nameRu: 'Велосипед', kind: 'cardio', muscleGroup: 'Cardio', muscleGroupRu: 'Кардио' },
@@ -60,9 +67,21 @@ export const EXERCISE_LIBRARY: ExerciseTemplate[] = [
   { id: 'jumping-rope', name: 'Jumping Rope', nameRu: 'Скакалка', kind: 'cardio', muscleGroup: 'Cardio', muscleGroupRu: 'Кардио' },
   { id: 'swimming', name: 'Swimming', nameRu: 'Плавание', kind: 'cardio', muscleGroup: 'Cardio', muscleGroupRu: 'Кардио' },
   { id: 'walking', name: 'Walking', nameRu: 'Ходьба', kind: 'cardio', muscleGroup: 'Cardio', muscleGroupRu: 'Кардио' },
+
+  // Meditation
+  { id: 'meditation', name: 'Meditation', nameRu: 'Медитация', kind: 'cardio', muscleGroup: 'Meditation', muscleGroupRu: 'Медитация' },
+  { id: 'yoga', name: 'Yoga', nameRu: 'Йога', kind: 'cardio', muscleGroup: 'Meditation', muscleGroupRu: 'Медитация' },
+  { id: 'breathing', name: 'Breathing Exercises', nameRu: 'Дыхательные упражнения', kind: 'cardio', muscleGroup: 'Meditation', muscleGroupRu: 'Медитация' },
+  { id: 'yoga-nidra', name: 'Yoga Nidra', nameRu: 'Йога-нидра', kind: 'cardio', muscleGroup: 'Meditation', muscleGroupRu: 'Медитация' },
+
+  // Relax
+  { id: 'stretching', name: 'Stretching', nameRu: 'Растяжка', kind: 'cardio', muscleGroup: 'Relax', muscleGroupRu: 'Релакс' },
+  { id: 'foam-rolling', name: 'Foam Rolling', nameRu: 'Пенный роллер', kind: 'cardio', muscleGroup: 'Relax', muscleGroupRu: 'Релакс' },
+  { id: 'massage', name: 'Massage', nameRu: 'Массаж', kind: 'cardio', muscleGroup: 'Relax', muscleGroupRu: 'Релакс' },
+  { id: 'sauna', name: 'Sauna', nameRu: 'Сауна', kind: 'cardio', muscleGroup: 'Relax', muscleGroupRu: 'Релакс' },
 ];
 
-export const MUSCLE_GROUPS_RU = ['Грудь', 'Спина', 'Ноги', 'Плечи', 'Руки', 'Пресс', 'Кардио'];
+export const MUSCLE_GROUPS_RU = ['Грудь', 'Спина', 'Ноги', 'Ягодицы', 'Плечи', 'Руки', 'Пресс', 'Кардио', 'Медитация', 'Релакс'];
 
 export function createExerciseFromTemplate(template: ExerciseTemplate): Exercise {
   return {
