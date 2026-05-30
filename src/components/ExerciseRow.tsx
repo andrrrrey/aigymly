@@ -1,27 +1,41 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, Trash2, Plus, X, Clock } from 'lucide-react';
+import { ChevronDown, Trash2, Plus, X, Clock, GripVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import type { Exercise } from '@/types';
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
+import type { DraggableAttributes } from '@dnd-kit/core';
 
 interface Props {
   workoutId: string;
   exercise: Exercise;
+  dragHandleListeners?: SyntheticListenerMap;
+  dragHandleAttributes?: DraggableAttributes;
+  isDragging?: boolean;
 }
 
-export function ExerciseRow({ workoutId, exercise }: Props) {
+export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHandleAttributes, isDragging }: Props) {
   const [open, setOpen] = useState(true);
   const { addSet, updateSet, removeSet, removeExercise } = useApp();
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-white shadow-card">
+    <div className={cn('overflow-hidden rounded-2xl bg-white shadow-card', isDragging && 'opacity-50')}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="tappable flex w-full items-center gap-3 px-3 py-3 text-left"
       >
+        <button
+          type="button"
+          className="touch-none text-ink-300 hover:text-ink-500 shrink-0 cursor-grab active:cursor-grabbing"
+          {...dragHandleListeners}
+          {...dragHandleAttributes}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical size={18} />
+        </button>
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink-100">
           <ExerciseIcon kind={exercise.kind} />
         </div>

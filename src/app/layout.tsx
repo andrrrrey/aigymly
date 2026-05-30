@@ -4,11 +4,11 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { AuthProvider } from '@/components/AuthProvider';
 
 export const metadata: Metadata = {
-  title: 'Ai Gymly — умный дневник тренировок',
+  title: 'Ai Gymly — умный фитнес планнер',
   description: 'Помогаем не слиться на пути к цели',
   manifest: '/manifest.webmanifest',
   openGraph: {
-    title: 'Ai Gymly — умный дневник тренировок',
+    title: 'Ai Gymly — умный фитнес планнер',
     description: 'Помогаем не слиться на пути к цели',
     type: 'website',
   },

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, Calendar as CalendarIcon, Bell, Settings, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, Calendar as CalendarIcon, Bell, MoreHorizontal } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useApp } from '@/store/app';
@@ -10,6 +10,21 @@ import { uid } from '@/lib/utils';
 import type { Exercise, MarkerColor, WorkoutEmoji } from '@/types';
 import { ExerciseRow } from '@/components/ExerciseRow';
 import { ExercisePicker } from '@/components/ExercisePicker';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const NOTIFY_OPTIONS = [
   { label: 'Без уведомления', value: 0 },
@@ -23,7 +38,11 @@ export default function WorkoutPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-  const { workouts, addWorkout, updateWorkout, deleteWorkout, addExercise } = useApp();
+  const { workouts, addWorkout, updateWorkout, deleteWorkout, addExercise, reorderExercises } = useApp();
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  );
 
   const isNew = params.id === 'new';
   const initialDate = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
@@ -36,6 +55,8 @@ export default function WorkoutPage() {
   const [notify, setNotify] = useState(30);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const timeInputRef = useRef<HTMLInputElement>(null);
 
   const workout = useMemo(
     () => workouts.find((w) => w.id === workoutId),
@@ -129,7 +150,7 @@ export default function WorkoutPage() {
       <main className="no-scrollbar scroll-smooth-momentum flex-1 overflow-y-auto bg-white">
         <div className="space-y-5 px-5 pb-32 pt-5">
           {/* Title row */}
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start">
             <input
               type="text"
               value={title}
@@ -137,48 +158,49 @@ export default function WorkoutPage() {
               placeholder="Название тренировки"
               className="min-w-0 flex-1 bg-transparent text-[18px] font-semibold tracking-tight text-ink-900 placeholder:text-ink-300 focus:outline-none"
             />
-            <button className="tappable shrink-0 rounded-full border border-brand px-4 py-1.5 text-[13px] font-semibold text-brand">
-              Настройки
-            </button>
           </div>
 
-          {/* Date / time / notify row */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-[14px]">
-            <label className="flex items-center gap-2 text-ink-700">
-              <CalendarIcon size={18} className="text-ink-500" />
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="tabular bg-transparent text-ink-900 focus:outline-none"
-              />
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => {
-                  setTime(e.target.value);
-                  // auto-adjust end time +1h if before
-                  const [h, m] = e.target.value.split(':').map(Number);
-                  const end = `${String((h + 1) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                  setEndTime(end);
-                }}
-                className="tabular bg-transparent text-ink-900 focus:outline-none"
-              />
-            </label>
-            <label className="flex items-center gap-2 text-ink-700">
-              <Bell size={18} className="text-ink-500" />
-              <select
-                value={notify}
-                onChange={(e) => setNotify(Number(e.target.value))}
-                className="bg-transparent text-ink-900 focus:outline-none"
-              >
-                {NOTIFY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {/* Date / time / notify — single row */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-ink-700">
+            <button
+              type="button"
+              onClick={() => dateInputRef.current?.showPicker?.()}
+              className="text-ink-500"
+              aria-label="Выбрать дату"
+            >
+              <CalendarIcon size={18} />
+            </button>
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="tabular bg-transparent text-ink-900 focus:outline-none [&::-webkit-calendar-picker-indicator]:hidden"
+            />
+            <input
+              ref={timeInputRef}
+              type="time"
+              value={time}
+              onChange={(e) => {
+                setTime(e.target.value);
+                const [h, m] = e.target.value.split(':').map(Number);
+                const end = `${String((h + 1) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                setEndTime(end);
+              }}
+              className="tabular bg-transparent text-ink-900 focus:outline-none [&::-webkit-calendar-picker-indicator]:hidden"
+            />
+            <Bell size={18} className="text-ink-500" />
+            <select
+              value={notify}
+              onChange={(e) => setNotify(Number(e.target.value))}
+              className="bg-transparent text-ink-900 focus:outline-none"
+            >
+              {NOTIFY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="border-t border-ink-100 pt-4">
@@ -190,19 +212,33 @@ export default function WorkoutPage() {
             </button>
           </div>
 
-          <div className="space-y-2 border-t border-ink-100 pt-4">
+          <div className="border-t border-ink-100 pt-4">
             {exercises.length === 0 ? (
               <p className="py-8 text-center text-[14px] text-ink-400">
                 Упражнения ещё не добавлены
               </p>
             ) : (
-              exercises.map((ex) => (
-                <ExerciseRow
-                  key={ex.id}
-                  workoutId={workoutId!}
-                  exercise={ex}
-                />
-              ))
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event: DragEndEvent) => {
+                  const { active, over } = event;
+                  if (!over || active.id === over.id || !workoutId) return;
+                  const fromIndex = exercises.findIndex((e) => e.id === active.id);
+                  const toIndex = exercises.findIndex((e) => e.id === over.id);
+                  if (fromIndex !== -1 && toIndex !== -1) {
+                    reorderExercises(workoutId, fromIndex, toIndex);
+                  }
+                }}
+              >
+                <SortableContext items={exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {exercises.map((ex) => (
+                      <SortableExerciseRow key={ex.id} workoutId={workoutId!} exercise={ex} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
         </div>
@@ -249,6 +285,27 @@ export default function WorkoutPage() {
         isNew={isNew}
       />
     </>
+  );
+}
+
+function SortableExerciseRow({ workoutId, exercise }: { workoutId: string; exercise: Exercise }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: exercise.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <ExerciseRow
+        workoutId={workoutId}
+        exercise={exercise}
+        dragHandleListeners={listeners}
+        dragHandleAttributes={attributes}
+        isDragging={isDragging}
+      />
+    </div>
   );
 }
 
