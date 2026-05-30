@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { addDays, format, isAfter, isSameDay, parseISO, startOfDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Plus } from 'lucide-react';
 import { Calendar } from '@/components/Calendar';
@@ -16,23 +16,13 @@ export default function HomePage() {
   const router = useRouter();
   const { workouts, selectedDate } = useApp();
   const user = useAuth((s) => s.user);
-  const [expanded, setExpanded] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
 
-  // Show selected day + next 2 days that have workouts
+  // All workouts grouped by date, sorted chronologically (past + future)
   const groupedWorkouts = useMemo(() => {
-    const selected = parseISO(selectedDate);
-    const today = startOfDay(new Date());
     const groups = new Map<string, typeof workouts>();
-    workouts
-      .filter((w) => {
-        const d = parseISO(w.date);
-        return !isAfter(today, d) || isSameDay(d, today);
-      })
-      .filter((w) => {
-        const d = parseISO(w.date);
-        return !isAfter(selected, d) || isSameDay(d, selected);
-      })
+    [...workouts]
       .sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return a.startTime.localeCompare(b.startTime);
@@ -43,7 +33,15 @@ export default function HomePage() {
         groups.set(w.date, arr);
       });
     return Array.from(groups.entries());
-  }, [workouts, selectedDate]);
+  }, [workouts]);
+
+  // Scroll to selected date section when it changes
+  useEffect(() => {
+    const el = sectionRefs.current.get(selectedDate);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selectedDate]);
 
   const handleCreate = () => {
     if (!user) {
@@ -59,7 +57,7 @@ export default function HomePage() {
         className="shrink-0 bg-white"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <Calendar expanded={expanded} onToggle={() => setExpanded((v) => !v)} />
+        <Calendar />
       </header>
 
       <main className="no-scrollbar scroll-smooth-momentum relative flex-1 overflow-y-auto bg-white">
@@ -69,7 +67,14 @@ export default function HomePage() {
             <EmptyState onCreate={handleCreate} />
           ) : (
             groupedWorkouts.map(([date, list]) => (
-              <section key={date} className="space-y-2">
+              <section
+                key={date}
+                ref={(el) => {
+                  if (el) sectionRefs.current.set(date, el);
+                  else sectionRefs.current.delete(date);
+                }}
+                className="space-y-2"
+              >
                 <h3 className="text-[15px] font-semibold tracking-tight text-ink-900">
                   {format(parseISO(date), 'd MMMM, EEEE', { locale: ru }).replace(
                     /^./,

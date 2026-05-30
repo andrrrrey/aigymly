@@ -1,42 +1,38 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays,
-  addMonths,
-  endOfMonth,
-  endOfWeek,
+  addWeeks,
   format,
   isSameDay,
-  isSameMonth,
   parseISO,
-  startOfMonth,
   startOfWeek,
-  subMonths,
+  subWeeks,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn, MARKER_HEX } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useAuth } from '@/store/auth';
-import type { Workout } from '@/types';
 
-const WEEKDAYS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
-const WEEKDAYS_FULL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const WEEK_HEIGHT = 52; // px per week row
+const INITIAL_WEEKS_BEFORE = 26;
+const INITIAL_WEEKS_AFTER = 26;
+const LOAD_MORE = 8;
 
-interface Props {
-  expanded: boolean;
-  onToggle: () => void;
+function getWeekStart(date: Date) {
+  return startOfWeek(date, { weekStartsOn: 1 });
 }
 
-export function Calendar({ expanded, onToggle }: Props) {
+function buildWeek(weekStart: Date): Date[] {
+  return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+}
+
+export function Calendar() {
   const { selectedDate, setSelectedDate, workouts } = useApp();
   const user = useAuth((s) => s.user);
   const selected = parseISO(selectedDate);
-  const [viewMonth, setViewMonth] = useState(selected);
 
-  // Markers map: yyyy-MM-dd -> distinct colors (only for current user's workouts)
   const markersByDate = useMemo(() => {
     const m = new Map<string, string[]>();
     workouts
@@ -49,115 +45,102 @@ export function Calendar({ expanded, onToggle }: Props) {
     return m;
   }, [workouts, user]);
 
-  // Compute weeks for current view month
-  const monthWeeks = useMemo(() => {
-    const start = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(viewMonth), { weekStartsOn: 1 });
-    const weeks: Date[][] = [];
-    let cursor = start;
-    while (cursor <= end) {
-      const week: Date[] = [];
-      for (let i = 0; i < 7; i++) {
-        week.push(cursor);
-        cursor = addDays(cursor, 1);
-      }
-      weeks.push(week);
+  // Build initial list of week-start dates
+  const today = useMemo(() => new Date(), []);
+  const [weekStarts, setWeekStarts] = useState<Date[]>(() => {
+    const anchor = getWeekStart(today);
+    return Array.from({ length: INITIAL_WEEKS_BEFORE + 1 + INITIAL_WEEKS_AFTER }, (_, i) =>
+      subWeeks(anchor, INITIAL_WEEKS_BEFORE - i)
+    );
+  });
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [visibleMonth, setVisibleMonth] = useState(today);
+  const prepending = useRef(false);
+
+  // Scroll to current week on mount
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = INITIAL_WEEKS_BEFORE * WEEK_HEIGHT;
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || prepending.current) return;
+
+    const firstVisibleIdx = Math.floor(el.scrollTop / WEEK_HEIGHT);
+    const safeIdx = Math.max(0, Math.min(firstVisibleIdx, weekStarts.length - 1));
+    setVisibleMonth(weekStarts[safeIdx]);
+
+    // Load more at top
+    if (el.scrollTop < WEEK_HEIGHT * 3) {
+      prepending.current = true;
+      const newWeeks = Array.from({ length: LOAD_MORE }, (_, i) =>
+        subWeeks(weekStarts[0], LOAD_MORE - i)
+      );
+      const prevHeight = el.scrollHeight;
+      setWeekStarts((prev) => [...newWeeks, ...prev]);
+      // Restore scroll position after prepend (run after render)
+      requestAnimationFrame(() => {
+        el.scrollTop += el.scrollHeight - prevHeight;
+        prepending.current = false;
+      });
     }
-    return weeks;
-  }, [viewMonth]);
 
-  // For collapsed mode — show only the week containing selected date
-  const selectedWeek = useMemo(() => {
-    const start = startOfWeek(selected, { weekStartsOn: 1 });
-    return Array.from({ length: 7 }, (_, i) => addDays(start, i));
-  }, [selected]);
-
-  const goPrev = () => setViewMonth((m) => subMonths(m, 1));
-  const goNext = () => setViewMonth((m) => addMonths(m, 1));
+    // Load more at bottom
+    if (el.scrollTop + el.clientHeight > el.scrollHeight - WEEK_HEIGHT * 3) {
+      const last = weekStarts[weekStarts.length - 1];
+      const newWeeks = Array.from({ length: LOAD_MORE }, (_, i) =>
+        addWeeks(last, i + 1)
+      );
+      setWeekStarts((prev) => [...prev, ...newWeeks]);
+    }
+  }, [weekStarts]);
 
   return (
-    <div className="px-5 pt-2">
-      {/* Month header with navigation */}
-      <div className="flex items-center justify-between pb-3">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={goPrev}
-            className="tappable -ml-1.5 grid h-8 w-8 place-items-center rounded-full text-ink-500 hover:bg-ink-100"
-            aria-label="Предыдущий месяц"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <h2 className="font-display text-[28px] font-semibold tracking-tight text-ink-900">
-            {format(viewMonth, 'LLLL', { locale: ru }).replace(/^./, (c) => c.toUpperCase())}
-          </h2>
-          <button
-            onClick={goNext}
-            className="tappable grid h-8 w-8 place-items-center rounded-full text-ink-500 hover:bg-ink-100"
-            aria-label="Следующий месяц"
-          >
-            <ChevronRight size={20} />
-          </button>
-        </div>
-        <button
-          onClick={onToggle}
-          className="tappable grid h-9 w-9 place-items-center rounded-xl text-ink-700"
-          aria-label={expanded ? 'Свернуть' : 'Развернуть'}
-        >
-          <CalendarIcon expanded={expanded} />
-        </button>
+    <div className="px-5 pt-2 pb-2">
+      {/* Month header */}
+      <div className="pb-2">
+        <h2 className="font-display text-[28px] font-semibold tracking-tight text-ink-900">
+          {format(visibleMonth, 'LLLL yyyy', { locale: ru }).replace(/^./, (c) => c.toUpperCase())}
+        </h2>
       </div>
 
-      {/* Weekday header */}
-      <div className="grid grid-cols-7 pb-1.5">
-        {WEEKDAYS_FULL.map((d, i) => (
-          <div
-            key={i}
-            className="text-center text-[11px] font-medium uppercase tracking-wider text-ink-400"
-          >
+      {/* Weekday labels */}
+      <div className="grid grid-cols-7 pb-1">
+        {['П', 'В', 'С', 'Ч', 'П', 'С', 'В'].map((d, i) => (
+          <div key={i} className="text-center text-[11px] font-medium uppercase tracking-wider text-ink-400">
             {d}
           </div>
         ))}
       </div>
 
-      {/* Calendar grid with height animation */}
-      <motion.div
-        animate={{ height: expanded ? 'auto' : 56 }}
-        initial={false}
-        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-        className="overflow-hidden"
+      {/* Scrollable week list */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="no-scrollbar overflow-y-auto"
+        style={{ height: WEEK_HEIGHT * 3 }}
       >
-        {expanded ? (
-          <div className="space-y-0.5">
-            {monthWeeks.map((week, wi) => (
-              <div key={wi} className="grid grid-cols-7">
-                {week.map((day) => (
-                  <DayCell
-                    key={day.toISOString()}
-                    day={day}
-                    isSelected={isSameDay(day, selected)}
-                    isCurrentMonth={isSameMonth(day, viewMonth)}
-                    markers={markersByDate.get(format(day, 'yyyy-MM-dd')) ?? []}
-                    onSelect={() => setSelectedDate(format(day, 'yyyy-MM-dd'))}
-                  />
-                ))}
-              </div>
-            ))}
+        {weekStarts.map((ws, wi) => (
+          <div key={ws.toISOString()} className="grid grid-cols-7" style={{ height: WEEK_HEIGHT }}>
+            {buildWeek(ws).map((day) => {
+              const dateKey = format(day, 'yyyy-MM-dd');
+              return (
+                <DayCell
+                  key={day.toISOString()}
+                  day={day}
+                  isSelected={isSameDay(day, selected)}
+                  isToday={isSameDay(day, today)}
+                  markers={markersByDate.get(dateKey) ?? []}
+                  onSelect={() => setSelectedDate(dateKey)}
+                />
+              );
+            })}
           </div>
-        ) : (
-          <div className="grid grid-cols-7">
-            {selectedWeek.map((day) => (
-              <DayCell
-                key={day.toISOString()}
-                day={day}
-                isSelected={isSameDay(day, selected)}
-                isCurrentMonth={true}
-                markers={markersByDate.get(format(day, 'yyyy-MM-dd')) ?? []}
-                onSelect={() => setSelectedDate(format(day, 'yyyy-MM-dd'))}
-              />
-            ))}
-          </div>
-        )}
-      </motion.div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -165,13 +148,13 @@ export function Calendar({ expanded, onToggle }: Props) {
 function DayCell({
   day,
   isSelected,
-  isCurrentMonth,
+  isToday,
   markers,
   onSelect,
 }: {
   day: Date;
   isSelected: boolean;
-  isCurrentMonth: boolean;
+  isToday: boolean;
   markers: string[];
   onSelect: () => void;
 }) {
@@ -180,22 +163,23 @@ function DayCell({
   return (
     <button
       onClick={onSelect}
-      className="tappable group relative grid h-12 place-items-center"
+      className="tappable relative grid place-items-center"
+      style={{ height: WEEK_HEIGHT }}
     >
       <div
         className={cn(
           'tabular flex h-9 w-9 items-center justify-center rounded-[10px] text-[17px] font-medium transition-colors',
           isSelected
             ? 'bg-brand text-white shadow-[0_2px_8px_rgba(47,107,255,0.35)]'
-            : isCurrentMonth
-            ? 'text-ink-900'
-            : 'text-ink-300'
+            : isToday
+            ? 'text-brand font-semibold'
+            : 'text-ink-900'
         )}
       >
         {dayNum}
       </div>
       {markers.length > 0 && (
-        <div className="absolute bottom-1 flex gap-[2px]">
+        <div className="absolute bottom-1.5 flex gap-[2px]">
           {markers.slice(0, 3).map((m, i) => (
             <span
               key={i}
@@ -208,24 +192,5 @@ function DayCell({
         </div>
       )}
     </button>
-  );
-}
-
-function CalendarIcon({ expanded }: { expanded: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-      <rect x="3" y="4.5" width="16" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M3 9h16" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M7 3v3M15 3v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <motion.path
-        d="M7 13l2 2 4-4"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        animate={{ pathLength: expanded ? 1 : 0, opacity: expanded ? 1 : 0 }}
-        transition={{ duration: 0.25 }}
-      />
-    </svg>
   );
 }

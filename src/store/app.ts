@@ -22,6 +22,7 @@ interface AppState {
   getWorkout: (id: string) => Workout | undefined;
   addExercise: (workoutId: string, exercise: Exercise) => void;
   removeExercise: (workoutId: string, exerciseId: string) => void;
+  reorderExercises: (workoutId: string, fromIndex: number, toIndex: number) => void;
   addSet: (workoutId: string, exerciseId: string) => void;
   updateSet: (workoutId: string, exerciseId: string, setId: string, patch: Partial<ExerciseSet>) => void;
   removeSet: (workoutId: string, exerciseId: string, setId: string) => void;
@@ -118,6 +119,20 @@ export const useApp = create<AppState>()(
               ? { ...w, exercises: w.exercises.filter((e) => e.id !== exerciseId) }
               : w
           ),
+        }));
+        const updated = get().workouts.find((w) => w.id === workoutId);
+        if (updated) syncUpdate(workoutId, { exercises: updated.exercises });
+      },
+
+      reorderExercises: (workoutId, fromIndex, toIndex) => {
+        set((s) => ({
+          workouts: s.workouts.map((w) => {
+            if (w.id !== workoutId) return w;
+            const exercises = [...w.exercises];
+            const [moved] = exercises.splice(fromIndex, 1);
+            exercises.splice(toIndex, 0, moved);
+            return { ...w, exercises };
+          }),
         }));
         const updated = get().workouts.find((w) => w.id === workoutId);
         if (updated) syncUpdate(workoutId, { exercises: updated.exercises });
