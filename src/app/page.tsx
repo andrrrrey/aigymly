@@ -14,10 +14,14 @@ import { AuthSheet } from '@/components/auth/AuthSheet';
 
 export default function HomePage() {
   const router = useRouter();
-  const { workouts, selectedDate } = useApp();
+  const { workouts, selectedDate, setSelectedDate } = useApp();
   const user = useAuth((s) => s.user);
   const [authOpen, setAuthOpen] = useState(false);
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Prevent the IntersectionObserver from updating selectedDate while we're
+  // programmatically scrolling to a date (triggered by calendar tap).
+  const scrollingToDate = useRef(false);
 
   // All workouts grouped by date, sorted chronologically (past + future)
   const groupedWorkouts = useMemo(() => {
@@ -35,12 +39,42 @@ export default function HomePage() {
     return Array.from(groups.entries());
   }, [workouts]);
 
-  // Scroll to selected date section when it changes
+  // IntersectionObserver: when a date section enters the viewport, update
+  // selectedDate so the calendar week strip follows the scroll position.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (scrollingToDate.current) return;
+        // Pick the topmost visible section
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) {
+          const date = (visible[0].target as HTMLElement).dataset.date;
+          if (date) setSelectedDate(date);
+        }
+      },
+      { root: container, threshold: 0.3 }
+    );
+
+    sectionRefs.current.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  // Re-run when the list of sections changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupedWorkouts, setSelectedDate]);
+
+  // When the user taps a day in the calendar, scroll the list to that date.
   useEffect(() => {
     const el = sectionRefs.current.get(selectedDate);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    if (!el) return;
+    scrollingToDate.current = true;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Release the lock after the scroll animation finishes (~500 ms)
+    const t = setTimeout(() => { scrollingToDate.current = false; }, 600);
+    return () => clearTimeout(t);
   }, [selectedDate]);
 
   const handleCreate = () => {
@@ -60,7 +94,10 @@ export default function HomePage() {
         <Calendar />
       </header>
 
-      <main className="no-scrollbar scroll-smooth-momentum relative flex-1 overflow-y-auto bg-white">
+      <main
+        ref={scrollRef}
+        className="no-scrollbar scroll-smooth-momentum relative flex-1 overflow-y-auto bg-white"
+      >
         <div className="border-t border-ink-100" />
         <div className="space-y-5 px-5 pb-28 pt-5">
           {groupedWorkouts.length === 0 ? (
@@ -69,6 +106,7 @@ export default function HomePage() {
             groupedWorkouts.map(([date, list]) => (
               <section
                 key={date}
+                data-date={date}
                 ref={(el) => {
                   if (el) sectionRefs.current.set(date, el);
                   else sectionRefs.current.delete(date);
