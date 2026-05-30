@@ -1,37 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import {
   addDays,
-  addWeeks,
   format,
   isSameDay,
   parseISO,
   startOfWeek,
-  subWeeks,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn, MARKER_HEX } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useAuth } from '@/store/auth';
 
-const WEEK_HEIGHT = 52; // px per week row
-const INITIAL_WEEKS_BEFORE = 26;
-const INITIAL_WEEKS_AFTER = 26;
-const LOAD_MORE = 8;
-
-function getWeekStart(date: Date) {
-  return startOfWeek(date, { weekStartsOn: 1 });
-}
-
-function buildWeek(weekStart: Date): Date[] {
-  return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-}
+const WEEKDAYS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
 
 export function Calendar() {
   const { selectedDate, setSelectedDate, workouts } = useApp();
   const user = useAuth((s) => s.user);
   const selected = parseISO(selectedDate);
+  const today = useMemo(() => new Date(), []);
 
   const markersByDate = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -45,101 +33,45 @@ export function Calendar() {
     return m;
   }, [workouts, user]);
 
-  // Build initial list of week-start dates
-  const today = useMemo(() => new Date(), []);
-  const [weekStarts, setWeekStarts] = useState<Date[]>(() => {
-    const anchor = getWeekStart(today);
-    return Array.from({ length: INITIAL_WEEKS_BEFORE + 1 + INITIAL_WEEKS_AFTER }, (_, i) =>
-      subWeeks(anchor, INITIAL_WEEKS_BEFORE - i)
-    );
-  });
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [visibleMonth, setVisibleMonth] = useState(today);
-  const prepending = useRef(false);
-
-  // Scroll to current week on mount
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = INITIAL_WEEKS_BEFORE * WEEK_HEIGHT;
-  }, []);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el || prepending.current) return;
-
-    const firstVisibleIdx = Math.floor(el.scrollTop / WEEK_HEIGHT);
-    const safeIdx = Math.max(0, Math.min(firstVisibleIdx, weekStarts.length - 1));
-    setVisibleMonth(weekStarts[safeIdx]);
-
-    // Load more at top
-    if (el.scrollTop < WEEK_HEIGHT * 3) {
-      prepending.current = true;
-      const newWeeks = Array.from({ length: LOAD_MORE }, (_, i) =>
-        subWeeks(weekStarts[0], LOAD_MORE - i)
-      );
-      const prevHeight = el.scrollHeight;
-      setWeekStarts((prev) => [...newWeeks, ...prev]);
-      // Restore scroll position after prepend (run after render)
-      requestAnimationFrame(() => {
-        el.scrollTop += el.scrollHeight - prevHeight;
-        prepending.current = false;
-      });
-    }
-
-    // Load more at bottom
-    if (el.scrollTop + el.clientHeight > el.scrollHeight - WEEK_HEIGHT * 3) {
-      const last = weekStarts[weekStarts.length - 1];
-      const newWeeks = Array.from({ length: LOAD_MORE }, (_, i) =>
-        addWeeks(last, i + 1)
-      );
-      setWeekStarts((prev) => [...prev, ...newWeeks]);
-    }
-  }, [weekStarts]);
+  // Week containing selected date
+  const week = useMemo(() => {
+    const start = startOfWeek(selected, { weekStartsOn: 1 });
+    return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  }, [selected]);
 
   return (
     <div className="px-5 pt-2 pb-2">
-      {/* Month header */}
+      {/* Month label */}
       <div className="pb-2">
         <h2 className="font-display text-[28px] font-semibold tracking-tight text-ink-900">
-          {format(visibleMonth, 'LLLL yyyy', { locale: ru }).replace(/^./, (c) => c.toUpperCase())}
+          {format(selected, 'LLLL yyyy', { locale: ru }).replace(/^./, (c) => c.toUpperCase())}
         </h2>
       </div>
 
       {/* Weekday labels */}
       <div className="grid grid-cols-7 pb-1">
-        {['П', 'В', 'С', 'Ч', 'П', 'С', 'В'].map((d, i) => (
+        {WEEKDAYS.map((d, i) => (
           <div key={i} className="text-center text-[11px] font-medium uppercase tracking-wider text-ink-400">
             {d}
           </div>
         ))}
       </div>
 
-      {/* Scrollable week list */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="no-scrollbar overflow-y-auto"
-        style={{ height: WEEK_HEIGHT * 3 }}
-      >
-        {weekStarts.map((ws, wi) => (
-          <div key={ws.toISOString()} className="grid grid-cols-7" style={{ height: WEEK_HEIGHT }}>
-            {buildWeek(ws).map((day) => {
-              const dateKey = format(day, 'yyyy-MM-dd');
-              return (
-                <DayCell
-                  key={day.toISOString()}
-                  day={day}
-                  isSelected={isSameDay(day, selected)}
-                  isToday={isSameDay(day, today)}
-                  markers={markersByDate.get(dateKey) ?? []}
-                  onSelect={() => setSelectedDate(dateKey)}
-                />
-              );
-            })}
-          </div>
-        ))}
+      {/* Single week row */}
+      <div className="grid grid-cols-7">
+        {week.map((day) => {
+          const dateKey = format(day, 'yyyy-MM-dd');
+          return (
+            <DayCell
+              key={day.toISOString()}
+              day={day}
+              isSelected={isSameDay(day, selected)}
+              isToday={isSameDay(day, today)}
+              markers={markersByDate.get(dateKey) ?? []}
+              onSelect={() => setSelectedDate(dateKey)}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -158,13 +90,10 @@ function DayCell({
   markers: string[];
   onSelect: () => void;
 }) {
-  const dayNum = day.getDate();
-
   return (
     <button
       onClick={onSelect}
-      className="tappable relative grid place-items-center"
-      style={{ height: WEEK_HEIGHT }}
+      className="tappable relative grid h-12 place-items-center"
     >
       <div
         className={cn(
@@ -176,10 +105,10 @@ function DayCell({
             : 'text-ink-900'
         )}
       >
-        {dayNum}
+        {day.getDate()}
       </div>
       {markers.length > 0 && (
-        <div className="absolute bottom-1.5 flex gap-[2px]">
+        <div className="absolute bottom-1 flex gap-[2px]">
           {markers.slice(0, 3).map((m, i) => (
             <span
               key={i}
