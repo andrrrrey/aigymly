@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, Calendar as CalendarIcon, Bell, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, Calendar as CalendarIcon, Bell } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useApp } from '@/store/app';
@@ -138,12 +138,7 @@ export default function WorkoutPage() {
           <h1 className="text-[17px] font-semibold tracking-tight text-ink-900">
             {isNew ? 'Новая тренировка' : 'Тренировка'}
           </h1>
-          <button
-            className="tappable -mr-2 grid h-9 w-9 place-items-center rounded-full text-ink-700"
-            onClick={() => setActionsOpen(true)}
-          >
-            <MoreHorizontal size={22} />
-          </button>
+          <div className="h-9 w-9" />
         </div>
       </header>
 
@@ -250,13 +245,6 @@ export default function WorkoutPage() {
         style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
       >
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setActionsOpen(true)}
-            className="tappable grid h-12 w-12 place-items-center rounded-2xl border border-brand text-brand"
-            aria-label="Действия"
-          >
-            <ActionsIcon />
-          </button>
           <button
             onClick={handleSave}
             className="tappable flex-1 rounded-full border border-brand px-5 py-3 text-[15px] font-semibold text-brand"
