@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { format, parseISO } from 'date-fns';
+import { format, isSameDay, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Plus } from 'lucide-react';
 import { Calendar } from '@/components/Calendar';
@@ -19,9 +19,8 @@ export default function HomePage() {
   const [authOpen, setAuthOpen] = useState(false);
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Prevent the IntersectionObserver from updating selectedDate while we're
-  // programmatically scrolling to a date (triggered by calendar tap).
   const scrollingToDate = useRef(false);
+  const didInitialScroll = useRef(false);
 
   // All workouts grouped by date, sorted chronologically (past + future)
   const groupedWorkouts = useMemo(() => {
@@ -66,16 +65,36 @@ export default function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupedWorkouts, setSelectedDate]);
 
-  // When the user taps a day in the calendar, scroll the list to that date.
+  // On first render scroll to today or nearest future workout; afterwards
+  // scroll to selectedDate when the user taps a calendar day.
   useEffect(() => {
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+
+    if (!didInitialScroll.current) {
+      didInitialScroll.current = true;
+      // Find today's section or the nearest future date that has workouts
+      const dates = Array.from(sectionRefs.current.keys()).sort();
+      const target = dates.find((d) => d >= todayStr) ?? dates[dates.length - 1];
+      if (target) {
+        setSelectedDate(target);
+        const el = sectionRefs.current.get(target);
+        if (el) {
+          scrollingToDate.current = true;
+          el.scrollIntoView({ behavior: 'instant', block: 'start' });
+          setTimeout(() => { scrollingToDate.current = false; }, 300);
+        }
+      }
+      return;
+    }
+
     const el = sectionRefs.current.get(selectedDate);
     if (!el) return;
     scrollingToDate.current = true;
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // Release the lock after the scroll animation finishes (~500 ms)
     const t = setTimeout(() => { scrollingToDate.current = false; }, 600);
     return () => clearTimeout(t);
-  }, [selectedDate]);
+  }, [selectedDate, setSelectedDate]);
 
   const handleCreate = () => {
     if (!user) {
