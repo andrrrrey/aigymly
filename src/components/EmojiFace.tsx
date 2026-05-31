@@ -8,61 +8,65 @@ interface EmojiFaceProps {
 export function EmojiFace({ variant, size = 56 }: EmojiFaceProps) {
   const s = size;
   switch (variant) {
-    case 'wink':
+    case 'fire':
       return (
         <svg width={s} height={s} viewBox="0 0 56 56" fill="none">
-          {/* Left eye open */}
-          <circle cx="20" cy="24" r="2" fill="#161A21" />
-          {/* Right eye wink */}
-          <path d="M32 24c2 0 4-1 5-2" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
-          {/* Smile */}
-          <path d="M18 36c3 4 7 5 10 5s7-1 10-5" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
-        </svg>
-      );
-    case 'sleepy':
-      return (
-        <svg width={s} height={s} viewBox="0 0 56 56" fill="none">
-          {/* Closed eyes */}
-          <path d="M14 24c2 2 4 2 6 0" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M36 24c2 2 4 2 6 0" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
-          {/* Calm smile */}
-          <path d="M20 36c3 3 6 4 8 4s5-1 8-4" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
+          <circle cx="20" cy="26" r="2.2" fill="#161A21" />
+          <circle cx="36" cy="26" r="2.2" fill="#161A21" />
+          <path d="M18 37c2 4 6 6 10 6s8-2 10-6" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M20 18c0-3 2-5 4-4-1-2 0-4 2-4 0 3 3 4 3 7a5 5 0 01-9-1z" fill="#FF4D5E" />
+          <path d="M32 18c0-3 2-5 4-4-1-2 0-4 2-4 0 3 3 4 3 7a5 5 0 01-9-1z" fill="#FF4D5E" />
         </svg>
       );
     case 'happy':
       return (
         <svg width={s} height={s} viewBox="0 0 56 56" fill="none">
-          <circle cx="20" cy="24" r="2.2" fill="#161A21" />
-          <circle cx="36" cy="24" r="2.2" fill="#161A21" />
-          <path d="M16 34c2 6 8 9 12 9s10-3 12-9" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="#161A21" fillOpacity="0.05" />
+          <circle cx="20" cy="24" r="2.5" fill="#161A21" />
+          <circle cx="36" cy="24" r="2.5" fill="#161A21" />
+          <path d="M16 34c2 6 8 9 12 9s10-3 12-9" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M23 18c1-1 2.5-1 4 0" stroke="#161A21" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M29 18c1-1 2.5-1 4 0" stroke="#161A21" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+    case 'wink':
+      return (
+        <svg width={s} height={s} viewBox="0 0 56 56" fill="none">
+          <circle cx="20" cy="24" r="2" fill="#161A21" />
+          <path d="M32 24c2 0 4-1 5-2" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M18 36c3 4 7 5 10 5s7-1 10-5" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
         </svg>
       );
     case 'cool':
       return (
         <svg width={s} height={s} viewBox="0 0 56 56" fill="none">
-          {/* Sunglasses */}
-          <rect x="12" y="20" width="13" height="8" rx="3" fill="#161A21" />
-          <rect x="31" y="20" width="13" height="8" rx="3" fill="#161A21" />
-          <path d="M25 24h6" stroke="#161A21" strokeWidth="2" />
-          <path d="M18 36c3 3 6 4 10 4s7-1 10-4" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
+          <circle cx="20" cy="26" r="2.5" fill="#161A21" />
+          <circle cx="36" cy="26" r="2.5" fill="#161A21" />
+          <path d="M20 35h16" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'sleepy':
+      return (
+        <svg width={s} height={s} viewBox="0 0 56 56" fill="none">
+          <path d="M15 23c1.5 1.5 3.5 2 5.5 1" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M35 23c1.5 1.5 3.5 2 5.5 1" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M20 37c3 2 6 2 8 2s5 0 8-2" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
         </svg>
       );
     case 'flex':
       return (
         <svg width={s} height={s} viewBox="0 0 56 56" fill="none">
-          <circle cx="20" cy="24" r="2.2" fill="#161A21" />
-          <circle cx="36" cy="24" r="2.2" fill="#161A21" />
-          <path d="M20 36h16" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M14 18c2-1 4-1 6 0M36 18c2-1 4-1 6 0" stroke="#161A21" strokeWidth="2" strokeLinecap="round" />
+          <path d="M17 22l3 2-3 2" stroke="#161A21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M39 22l-3 2 3 2" stroke="#161A21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M20 38c2-2 4-3 8-3s6 1 8 3" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
         </svg>
       );
-    case 'fire':
+    case 'neutral':
+    default:
       return (
         <svg width={s} height={s} viewBox="0 0 56 56" fill="none">
-          <circle cx="20" cy="24" r="2.2" fill="#161A21" />
-          <circle cx="36" cy="24" r="2.2" fill="#161A21" />
-          <path d="M18 35c2 4 6 6 10 6s8-2 10-6" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M14 16c1-2 3-2 4 0M38 16c1-2 3-2 4 0" stroke="#FF4D5E" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M17 22l4 3-4 3" stroke="#161A21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M39 22l-4 3 4 3" stroke="#161A21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M19 38c2 0 18 0 18 0" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
         </svg>
       );
   }

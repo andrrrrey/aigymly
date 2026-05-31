@@ -6,10 +6,21 @@ import { ChevronLeft, Calendar as CalendarIcon, Bell } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useApp } from '@/store/app';
-import { uid } from '@/lib/utils';
+import { uid, EMOJI_BG, MARKER_HEX } from '@/lib/utils';
 import type { Exercise, MarkerColor, WorkoutEmoji } from '@/types';
 import { ExerciseRow } from '@/components/ExerciseRow';
 import { ExercisePicker } from '@/components/ExercisePicker';
+import { EmojiFace } from '@/components/EmojiFace';
+
+const MOODS: { emoji: WorkoutEmoji; color: MarkerColor; label: string }[] = [
+  { emoji: 'fire',    color: 'red',    label: 'Я в восторге!' },
+  { emoji: 'happy',   color: 'orange', label: 'Кайфую' },
+  { emoji: 'wink',    color: 'yellow', label: 'Мне хорошо!' },
+  { emoji: 'cool',    color: 'cyan',   label: 'Спокойное настроение' },
+  { emoji: 'sleepy',  color: 'blue',   label: 'Как-то грустно' },
+  { emoji: 'flex',    color: 'purple', label: 'Тяжко совсем' },
+  { emoji: 'neutral', color: 'gray',   label: 'Полный упадок сил' },
+];
 import {
   DndContext,
   closestCenter,
@@ -81,9 +92,9 @@ export default function WorkoutPage() {
       date,
       startTime: time,
       endTime,
-      emoji: 'happy' as WorkoutEmoji,
-      emojiBg: 'yellow' as MarkerColor,
-      marker: 'blue' as MarkerColor,
+      emoji: 'neutral' as WorkoutEmoji,
+      emojiBg: 'gray' as MarkerColor,
+      marker: 'gray' as MarkerColor,
       exercises: [],
       notifyMinutesBefore: notify,
     });
@@ -271,6 +282,11 @@ export default function WorkoutPage() {
         onClose={() => setActionsOpen(false)}
         onDelete={handleDelete}
         isNew={isNew}
+        onMood={(emoji, color) => {
+          if (workoutId) {
+            updateWorkout(workoutId, { emoji, emojiBg: color, marker: color });
+          }
+        }}
       />
     </>
   );
@@ -315,20 +331,57 @@ function ActionsSheet({
   onClose,
   onDelete,
   isNew,
+  onMood,
 }: {
   open: boolean;
   onClose: () => void;
   onDelete: () => void;
   isNew: boolean;
+  onMood: (emoji: WorkoutEmoji, color: MarkerColor) => void;
 }) {
+  const [showMood, setShowMood] = useState(false);
+
   if (!open) return null;
+
+  if (showMood) {
+    return (
+      <>
+        <div onClick={onClose} className="fixed inset-0 z-40 bg-ink-900/40" />
+        <div
+          className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[440px] animate-slide-up rounded-t-3xl bg-white p-5 shadow-elevated"
+          style={{ paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}
+        >
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink-200" />
+          <h3 className="mb-4 text-[17px] font-semibold tracking-tight text-ink-900">
+            Как ощущения?
+          </h3>
+          <div className="space-y-1">
+            {MOODS.map((m) => (
+              <button
+                key={m.color}
+                onClick={() => { onMood(m.emoji, m.color); onClose(); setShowMood(false); }}
+                className="tappable flex w-full items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink-50"
+              >
+                <div
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+                  style={{ backgroundColor: `${MARKER_HEX[m.color]}22` }}
+                >
+                  <EmojiFace variant={m.emoji} size={32} />
+                </div>
+                <span className="text-[15px] font-medium text-ink-900">{m.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
+      <div onClick={onClose} className="fixed inset-0 z-40 bg-ink-900/40" />
       <div
-        onClick={onClose}
-        className="fixed inset-0 z-40 bg-ink-900/40"
-      />
-      <div className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[440px] animate-slide-up rounded-t-3xl bg-white p-5 shadow-elevated"
+        className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[440px] animate-slide-up rounded-t-3xl bg-white p-5 shadow-elevated"
         style={{ paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink-200" />
@@ -336,9 +389,9 @@ function ActionsSheet({
           Действия с тренировкой
         </h3>
         <div className="space-y-1">
+          <ActionItem label="Оценить тренировку" onClick={() => setShowMood(true)} />
           <ActionItem label="Дублировать" onClick={onClose} />
           <ActionItem label="Поделиться" onClick={onClose} />
-          <ActionItem label="Отметить выполненной" onClick={onClose} />
           {!isNew && (
             <ActionItem label="Удалить" danger onClick={onDelete} />
           )}
