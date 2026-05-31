@@ -8,7 +8,7 @@ export type MarkerColor =
   | 'purple'
   | 'gray';
 
-export type WorkoutEmoji = 'wink' | 'sleepy' | 'happy' | 'cool' | 'flex' | 'fire';
+export type WorkoutEmoji = 'wink' | 'sleepy' | 'happy' | 'cool' | 'flex' | 'fire' | 'neutral';
 
 export type ExerciseKind = 'strength' | 'cardio';
 
