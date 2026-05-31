@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays,
   addWeeks,
@@ -18,38 +18,42 @@ import { ru } from 'date-fns/locale';
 import { animate, motion, useMotionValue } from 'framer-motion';
 import { cn, MARKER_HEX } from '@/lib/utils';
 import { useApp } from '@/store/app';
-import { useAuth } from '@/store/auth';
 
+const CELL_H = 52;
 const WEEKDAYS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
-const CELL_H = 52; // px — enough room for number + dots
 
-function buildWeek(anchorDate: Date): Date[] {
-  const start = startOfWeek(anchorDate, { weekStartsOn: 1 });
+function buildWeek(anchor: Date): Date[] {
+  const start = startOfWeek(anchor, { weekStartsOn: 1 });
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+function getWeeks3(anchor: Date): [Date[], Date[], Date[]] {
+  return [
+    buildWeek(subWeeks(anchor, 1)),
+    buildWeek(anchor),
+    buildWeek(addWeeks(anchor, 1)),
+  ];
 }
 
 export function Calendar() {
   const { selectedDate, setSelectedDate, workouts } = useApp();
-  const user = useAuth((s) => s.user);
   const selected = parseISO(selectedDate);
   const today = useMemo(() => new Date(), []);
   const [expanded, setExpanded] = useState(false);
 
-  // Markers: use emojiBg with fallback to marker
+  // All workouts markers — no user filter (store already holds current user's data)
   const markersByDate = useMemo(() => {
     const m = new Map<string, string[]>();
-    workouts
-      .filter((w) => (user ? w.userEmail === user.email : !w.userEmail))
-      .forEach((w) => {
-        const color = w.emojiBg ?? w.marker ?? 'blue';
-        const arr = m.get(w.date) ?? [];
-        if (!arr.includes(color)) arr.push(color);
-        m.set(w.date, arr);
-      });
+    workouts.forEach((w) => {
+      const color = w.emojiBg ?? w.marker ?? 'blue';
+      const arr = m.get(w.date) ?? [];
+      if (!arr.includes(color)) arr.push(color);
+      m.set(w.date, arr);
+    });
     return m;
-  }, [workouts, user]);
+  }, [workouts]);
 
-  // Full month grid
+  // Full month grid (for expanded view)
   const monthWeeks = useMemo(() => {
     const start = startOfWeek(startOfMonth(selected), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(selected), { weekStartsOn: 1 });
@@ -62,59 +66,81 @@ export function Calendar() {
     return weeks;
   }, [selected]);
 
-  // ── Swipe / drag for week row ──────────────────────────────────────────────
-  const x = useMotionValue(0);
-  const pointerStart = useRef<number | null>(null);
-  const isAnimating = useRef(false);
-  const weekRowRef = useRef<HTMLDivElement>(null);
+  // ── 3-week carousel ────────────────────────────────────────────────────────
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [weeks3, setWeeks3] = useState<[Date[], Date[], Date[]]>(() =>
+    getWeeks3(selected)
+  );
+  // x = offset of the 3-week strip; showing center week = x at -containerWidth
+  const x = useMotionValue(-360); // will be corrected to actual width on mount
+  const animating = useRef(false);
+  const skipExternal = useRef(false);
+  const pointerStartX = useRef<number | null>(null);
 
-  // Displayed week is managed locally so we can swap it at the right moment
-  const [displayedWeek, setDisplayedWeek] = useState<Date[]>(() => buildWeek(selected));
+  // Set correct initial x after mount
+  useLayoutEffect(() => {
+    const W = carouselRef.current?.offsetWidth ?? 360;
+    x.set(-W);
+  }, []);
 
-  // Sync when selectedDate changes from outside (calendar tap / scroll)
+  // Sync carousel when selectedDate changes externally (scroll, month tap)
   useEffect(() => {
-    if (isAnimating.current) return;
-    setDisplayedWeek(buildWeek(parseISO(selectedDate)));
-  }, [selectedDate]);
+    if (skipExternal.current) return;
+    const d = parseISO(selectedDate);
+    setWeeks3(getWeeks3(d));
+    const W = carouselRef.current?.offsetWidth ?? 360;
+    x.set(-W);
+  }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isAnimating.current || expanded) return;
-    pointerStart.current = e.clientX;
+  const navigateWeek = async (dir: 1 | -1) => {
+    // dir = 1 → prev week (swipe right), dir = -1 → next week (swipe left)
+    const W = carouselRef.current?.offsetWidth ?? 360;
+    const targetX = dir === 1 ? 0 : -2 * W;
+    animating.current = true;
+    await animate(x, targetX, { type: 'spring', stiffness: 280, damping: 28, restDelta: 0.5 });
+    const newDate = dir === 1 ? subWeeks(selected, 1) : addWeeks(selected, 1);
+    skipExternal.current = true;
+    setWeeks3(getWeeks3(newDate));
+    x.set(-W);
+    setSelectedDate(format(newDate, 'yyyy-MM-dd'));
+    skipExternal.current = false;
+    animating.current = false;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (animating.current || expanded) return;
+    pointerStartX.current = e.clientX;
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (pointerStart.current === null || isAnimating.current) return;
-    x.set(e.clientX - pointerStart.current);
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointerStartX.current === null || animating.current) return;
+    const W = carouselRef.current?.offsetWidth ?? 360;
+    const dx = e.clientX - pointerStartX.current;
+    // Clamp so you don't drag past the adjacent weeks
+    const clamped = Math.max(-2 * W, Math.min(0, -W + dx));
+    x.set(clamped);
   };
 
-  const onPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
-    if (pointerStart.current === null) return;
-    const dx = e.clientX - pointerStart.current;
-    pointerStart.current = null;
-
-    if (Math.abs(dx) > 50) {
-      isAnimating.current = true;
-      const W = weekRowRef.current?.offsetWidth ?? 320;
-      const goNext = dx < 0; // swipe left = next week
-      const exitX = goNext ? -W : W;
-      const newDate = goNext ? addWeeks(selected, 1) : subWeeks(selected, 1);
-      const newWeek = buildWeek(newDate);
-
-      // 1. slide current week out
-      await animate(x, exitX, { duration: 0.18, ease: 'easeIn' });
-      // 2. swap content, jump to opposite side
-      setDisplayedWeek(newWeek);
-      x.set(-exitX);
-      // 3. slide new week in
-      await animate(x, 0, { type: 'spring', stiffness: 320, damping: 28 });
-
-      isAnimating.current = false;
-      setSelectedDate(format(newDate, 'yyyy-MM-dd'));
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointerStartX.current === null || animating.current) return;
+    const dx = e.clientX - pointerStartX.current;
+    pointerStartX.current = null;
+    const W = carouselRef.current?.offsetWidth ?? 360;
+    if (dx > W * 0.28) {
+      navigateWeek(1); // prev
+    } else if (dx < -W * 0.28) {
+      navigateWeek(-1); // next
     } else {
-      // snap back
-      animate(x, 0, { type: 'spring', stiffness: 500, damping: 40 });
+      // snap back to center
+      animate(x, -W, { type: 'spring', stiffness: 400, damping: 35 });
     }
+  };
+
+  const handlePointerCancel = () => {
+    pointerStartX.current = null;
+    const W = carouselRef.current?.offsetWidth ?? 360;
+    animate(x, -W, { type: 'spring', stiffness: 400, damping: 35 });
   };
 
   return (
@@ -171,30 +197,41 @@ export function Calendar() {
             ))}
           </div>
         ) : (
-          // Swipeable week row
+          /* 3-week carousel */
           <div
-            ref={weekRowRef}
-            className="overflow-hidden"
+            ref={carouselRef}
+            className="overflow-hidden select-none"
             style={{ height: CELL_H }}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
           >
-            <motion.div style={{ x }} className="grid grid-cols-7">
-              {displayedWeek.map((day) => {
-                const dateKey = format(day, 'yyyy-MM-dd');
-                return (
-                  <DayCell
-                    key={day.toISOString()}
-                    day={day}
-                    isSelected={isSameDay(day, selected)}
-                    isToday={isSameDay(day, today)}
-                    isCurrentMonth
-                    markers={markersByDate.get(dateKey) ?? []}
-                    onSelect={() => setSelectedDate(dateKey)}
-                  />
-                );
-              })}
+            <motion.div
+              style={{ x, display: 'flex', width: '300%' }}
+            >
+              {weeks3.map((week, wi) => (
+                <div
+                  key={wi}
+                  className="grid grid-cols-7"
+                  style={{ width: '33.3334%' }}
+                >
+                  {week.map((day) => {
+                    const dateKey = format(day, 'yyyy-MM-dd');
+                    return (
+                      <DayCell
+                        key={day.toISOString()}
+                        day={day}
+                        isSelected={isSameDay(day, selected)}
+                        isToday={isSameDay(day, today)}
+                        isCurrentMonth
+                        markers={markersByDate.get(dateKey) ?? []}
+                        onSelect={() => setSelectedDate(dateKey)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
             </motion.div>
           </div>
         )}
@@ -227,9 +264,9 @@ function DayCell({
       <div
         className={cn(
           'tabular flex h-9 w-9 items-center justify-center rounded-[10px] text-[17px] font-medium transition-colors',
-          isSelected
+          isToday
             ? 'bg-brand text-white shadow-[0_2px_8px_rgba(47,107,255,0.35)]'
-            : isToday
+            : isSelected
             ? 'bg-brand/15 text-brand font-semibold'
             : isCurrentMonth
             ? 'text-ink-900'
@@ -238,14 +275,13 @@ function DayCell({
       >
         {day.getDate()}
       </div>
-      {/* Dots below the number */}
-      <div className="flex h-2 items-center gap-[3px]">
+      <div className="flex h-[5px] items-center gap-[3px]">
         {markers.slice(0, 3).map((m, i) => (
           <span
             key={i}
             className="block h-[4px] w-[4px] rounded-full"
             style={{
-              backgroundColor: isSelected ? 'rgba(255,255,255,0.9)' : MARKER_HEX[m] ?? '#9099A8',
+              backgroundColor: isToday ? 'rgba(255,255,255,0.85)' : MARKER_HEX[m] ?? '#9099A8',
             }}
           />
         ))}
