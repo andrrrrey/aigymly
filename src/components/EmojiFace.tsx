@@ -14,8 +14,6 @@ export function EmojiFace({ variant, size = 56 }: EmojiFaceProps) {
           <circle cx="20" cy="26" r="2.2" fill="#161A21" />
           <circle cx="36" cy="26" r="2.2" fill="#161A21" />
           <path d="M18 37c2 4 6 6 10 6s8-2 10-6" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M20 18c0-3 2-5 4-4-1-2 0-4 2-4 0 3 3 4 3 7a5 5 0 01-9-1z" fill="#FF4D5E" />
-          <path d="M32 18c0-3 2-5 4-4-1-2 0-4 2-4 0 3 3 4 3 7a5 5 0 01-9-1z" fill="#FF4D5E" />
         </svg>
       );
     case 'happy':
@@ -24,8 +22,6 @@ export function EmojiFace({ variant, size = 56 }: EmojiFaceProps) {
           <circle cx="20" cy="24" r="2.5" fill="#161A21" />
           <circle cx="36" cy="24" r="2.5" fill="#161A21" />
           <path d="M16 34c2 6 8 9 12 9s10-3 12-9" stroke="#161A21" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M23 18c1-1 2.5-1 4 0" stroke="#161A21" strokeWidth="1.8" strokeLinecap="round" />
-          <path d="M29 18c1-1 2.5-1 4 0" stroke="#161A21" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
       );
     case 'wink':
