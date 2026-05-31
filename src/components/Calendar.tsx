@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays,
   addWeeks,
@@ -15,12 +15,18 @@ import {
   subWeeks,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { motion } from 'framer-motion';
+import { animate, motion, useMotionValue } from 'framer-motion';
 import { cn, MARKER_HEX } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useAuth } from '@/store/auth';
 
 const WEEKDAYS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
+const CELL_H = 52; // px — enough room for number + dots
+
+function buildWeek(anchorDate: Date): Date[] {
+  const start = startOfWeek(anchorDate, { weekStartsOn: 1 });
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
 
 export function Calendar() {
   const { selectedDate, setSelectedDate, workouts } = useApp();
@@ -29,23 +35,19 @@ export function Calendar() {
   const today = useMemo(() => new Date(), []);
   const [expanded, setExpanded] = useState(false);
 
+  // Markers: use emojiBg with fallback to marker
   const markersByDate = useMemo(() => {
     const m = new Map<string, string[]>();
     workouts
       .filter((w) => (user ? w.userEmail === user.email : !w.userEmail))
       .forEach((w) => {
+        const color = w.emojiBg ?? w.marker ?? 'blue';
         const arr = m.get(w.date) ?? [];
-        if (!arr.includes(w.emojiBg)) arr.push(w.emojiBg);
+        if (!arr.includes(color)) arr.push(color);
         m.set(w.date, arr);
       });
     return m;
   }, [workouts, user]);
-
-  // Week containing selected date
-  const week = useMemo(() => {
-    const start = startOfWeek(selected, { weekStartsOn: 1 });
-    return Array.from({ length: 7 }, (_, i) => addDays(start, i));
-  }, [selected]);
 
   // Full month grid
   const monthWeeks = useMemo(() => {
@@ -60,16 +62,59 @@ export function Calendar() {
     return weeks;
   }, [selected]);
 
-  // Swipe handling
-  const touchStartX = useRef(0);
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
+  // ── Swipe / drag for week row ──────────────────────────────────────────────
+  const x = useMotionValue(0);
+  const pointerStart = useRef<number | null>(null);
+  const isAnimating = useRef(false);
+  const weekRowRef = useRef<HTMLDivElement>(null);
+
+  // Displayed week is managed locally so we can swap it at the right moment
+  const [displayedWeek, setDisplayedWeek] = useState<Date[]>(() => buildWeek(selected));
+
+  // Sync when selectedDate changes from outside (calendar tap / scroll)
+  useEffect(() => {
+    if (isAnimating.current) return;
+    setDisplayedWeek(buildWeek(parseISO(selectedDate)));
+  }, [selectedDate]);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isAnimating.current || expanded) return;
+    pointerStart.current = e.clientX;
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    if (Math.abs(dx) < 40) return;
-    const next = dx < 0 ? addWeeks(selected, 1) : subWeeks(selected, 1);
-    setSelectedDate(format(next, 'yyyy-MM-dd'));
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointerStart.current === null || isAnimating.current) return;
+    x.set(e.clientX - pointerStart.current);
+  };
+
+  const onPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointerStart.current === null) return;
+    const dx = e.clientX - pointerStart.current;
+    pointerStart.current = null;
+
+    if (Math.abs(dx) > 50) {
+      isAnimating.current = true;
+      const W = weekRowRef.current?.offsetWidth ?? 320;
+      const goNext = dx < 0; // swipe left = next week
+      const exitX = goNext ? -W : W;
+      const newDate = goNext ? addWeeks(selected, 1) : subWeeks(selected, 1);
+      const newWeek = buildWeek(newDate);
+
+      // 1. slide current week out
+      await animate(x, exitX, { duration: 0.18, ease: 'easeIn' });
+      // 2. swap content, jump to opposite side
+      setDisplayedWeek(newWeek);
+      x.set(-exitX);
+      // 3. slide new week in
+      await animate(x, 0, { type: 'spring', stiffness: 320, damping: 28 });
+
+      isAnimating.current = false;
+      setSelectedDate(format(newDate, 'yyyy-MM-dd'));
+    } else {
+      // snap back
+      animate(x, 0, { type: 'spring', stiffness: 500, damping: 40 });
+    }
   };
 
   return (
@@ -99,7 +144,7 @@ export function Calendar() {
 
       {/* Week row (collapsed) or full month (expanded) */}
       <motion.div
-        animate={{ height: expanded ? 'auto' : 48 }}
+        animate={{ height: expanded ? 'auto' : CELL_H }}
         initial={false}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         className="overflow-hidden"
@@ -126,25 +171,31 @@ export function Calendar() {
             ))}
           </div>
         ) : (
+          // Swipeable week row
           <div
-            className="grid grid-cols-7"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
+            ref={weekRowRef}
+            className="overflow-hidden"
+            style={{ height: CELL_H }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
           >
-            {week.map((day) => {
-              const dateKey = format(day, 'yyyy-MM-dd');
-              return (
-                <DayCell
-                  key={day.toISOString()}
-                  day={day}
-                  isSelected={isSameDay(day, selected)}
-                  isToday={isSameDay(day, today)}
-                  isCurrentMonth
-                  markers={markersByDate.get(dateKey) ?? []}
-                  onSelect={() => setSelectedDate(dateKey)}
-                />
-              );
-            })}
+            <motion.div style={{ x }} className="grid grid-cols-7">
+              {displayedWeek.map((day) => {
+                const dateKey = format(day, 'yyyy-MM-dd');
+                return (
+                  <DayCell
+                    key={day.toISOString()}
+                    day={day}
+                    isSelected={isSameDay(day, selected)}
+                    isToday={isSameDay(day, today)}
+                    isCurrentMonth
+                    markers={markersByDate.get(dateKey) ?? []}
+                    onSelect={() => setSelectedDate(dateKey)}
+                  />
+                );
+              })}
+            </motion.div>
           </div>
         )}
       </motion.div>
@@ -170,7 +221,8 @@ function DayCell({
   return (
     <button
       onClick={onSelect}
-      className="tappable relative grid h-12 place-items-center"
+      className="tappable relative flex flex-col items-center justify-center gap-0.5"
+      style={{ height: CELL_H }}
     >
       <div
         className={cn(
@@ -178,7 +230,7 @@ function DayCell({
           isSelected
             ? 'bg-brand text-white shadow-[0_2px_8px_rgba(47,107,255,0.35)]'
             : isToday
-            ? 'text-brand font-semibold'
+            ? 'bg-brand/15 text-brand font-semibold'
             : isCurrentMonth
             ? 'text-ink-900'
             : 'text-ink-300'
@@ -186,19 +238,18 @@ function DayCell({
       >
         {day.getDate()}
       </div>
-      {markers.length > 0 && (
-        <div className="absolute bottom-1 flex gap-[2px]">
-          {markers.slice(0, 3).map((m, i) => (
-            <span
-              key={i}
-              className="block h-[3px] w-[3px] rounded-full"
-              style={{
-                backgroundColor: isSelected ? 'rgba(255,255,255,0.95)' : MARKER_HEX[m],
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {/* Dots below the number */}
+      <div className="flex h-2 items-center gap-[3px]">
+        {markers.slice(0, 3).map((m, i) => (
+          <span
+            key={i}
+            className="block h-[4px] w-[4px] rounded-full"
+            style={{
+              backgroundColor: isSelected ? 'rgba(255,255,255,0.9)' : MARKER_HEX[m] ?? '#9099A8',
+            }}
+          />
+        ))}
+      </div>
     </button>
   );
 }
