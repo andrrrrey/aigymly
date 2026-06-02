@@ -18,7 +18,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!existing) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
 
   const body = await req.json()
-  const { title, date, startTime, endTime, emoji, emojiBg, marker, exercises, notes, notifyMinutesBefore, completed } = body
+  const { title, date, startTime, endTime, emoji, emojiBg, marker, icon, exercises, notes, notifyMinutesBefore, completed } = body
 
   const updated = await db.workout.update({
     where: { id },
@@ -30,6 +30,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(emoji !== undefined && { emoji }),
       ...(emojiBg !== undefined && { emojiBg }),
       ...(marker !== undefined && { marker }),
+      ...(icon !== undefined && { icon: icon || null }),
       ...(exercises !== undefined && { exercises: JSON.stringify(exercises) }),
       ...(notes !== undefined && { notes }),
       ...(notifyMinutesBefore !== undefined && { notifyMinutesBefore }),

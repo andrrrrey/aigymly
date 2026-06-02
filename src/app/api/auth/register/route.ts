@@ -6,11 +6,12 @@ import { sendVerificationEmail } from '@/lib/email'
 
 export async function POST(req: Request) {
   try {
-    const { email, password, confirmPassword } = await req.json()
+    const { email, password, confirmPassword, sex } = await req.json()
 
     if (!email || !password || !confirmPassword) {
       return NextResponse.json({ error: 'MISSING_FIELDS' }, { status: 400 })
     }
+    const normalizedSex = sex === 'female' ? 'female' : 'male'
     if (password !== confirmPassword) {
       return NextResponse.json({ error: 'PASSWORDS_MISMATCH' }, { status: 400 })
     }
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12)
     const user = await db.user.create({
-      data: { email: normalizedEmail, passwordHash },
+      data: { email: normalizedEmail, passwordHash, sex: normalizedSex },
     })
 
     const pin = String(Math.floor(Math.random() * 10000)).padStart(4, '0')

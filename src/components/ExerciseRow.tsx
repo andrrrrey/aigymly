@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, Trash2, Plus, X, Clock, GripVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -220,18 +220,35 @@ function NumberInput({
   step?: number;
   decimal?: boolean;
 }) {
+  // Keep a local string so the field can be cleared on mobile (a stuck "0"
+  // otherwise produces values like "015"). A 0 value is shown as an empty
+  // field with a "0" placeholder instead of a literal zero.
+  const [text, setText] = useState(() => (value === 0 ? '' : String(value)));
+
+  useEffect(() => {
+    const parsed = text === '' ? 0 : decimal ? parseFloat(text) : parseInt(text, 10);
+    if (parsed !== value) setText(value === 0 ? '' : String(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   return (
     <input
       type="number"
       inputMode={decimal ? 'decimal' : 'numeric'}
-      value={value}
+      value={text}
+      placeholder="0"
       step={step}
       min={min}
       max={max}
       onChange={(e) => {
-        const v = decimal ? parseFloat(e.target.value) : parseInt(e.target.value);
+        const raw = e.target.value;
+        setText(raw);
+        if (raw === '') {
+          onChange(0);
+          return;
+        }
+        const v = decimal ? parseFloat(raw) : parseInt(raw, 10);
         if (!isNaN(v)) onChange(Math.max(min, Math.min(max, v)));
-        else onChange(0);
       }}
       className="tabular w-full rounded-md border border-ink-200 bg-white px-2 py-1.5 text-center text-[14px] font-medium text-ink-900 focus:border-brand focus:outline-none"
     />

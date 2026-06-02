@@ -23,7 +23,7 @@ function BannerFromURL({ onBanner }: { onBanner: (b: 'verified' | 'error' | null
 }
 
 export default function ProfilePage() {
-  const { user, loading, logout, hydrate, markEmailVerified } = useAuth();
+  const { user, loading, logout, hydrate, markEmailVerified, updateSex } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [banner, setBanner] = useState<'verified' | 'error' | null>(null);
   const [resending, setResending] = useState(false);
@@ -201,6 +201,26 @@ export default function ProfilePage() {
               Войти / Зарегистрироваться
             </button>
           )
+        )}
+
+        {user && (
+          <div className="mt-6 rounded-2xl border border-ink-100 p-4">
+            <div className="mb-2 text-[13px] font-medium text-ink-500">Пол</div>
+            <div className="flex gap-2">
+              {(['male', 'female'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => updateSex(s)}
+                  className={`tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium transition-colors ${
+                    user.sex === s ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
+                  }`}
+                >
+                  {s === 'male' ? 'Мужчина' : 'Женщина'}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         <div className="mt-6 space-y-1">

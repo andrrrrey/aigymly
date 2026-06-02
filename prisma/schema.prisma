@@ -12,6 +12,7 @@ model User {
   email         String    @unique
   passwordHash  String
   emailVerified Boolean   @default(false)
+  sex           String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   tokens        Token[]
@@ -29,6 +30,7 @@ model Workout {
   emoji               String   @default("happy")
   emojiBg             String   @default("yellow")
   marker              String   @default("blue")
+  icon                String?
   exercises           String   @default("[]")
   notes               String?
   notifyMinutesBefore Int?

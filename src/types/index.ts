@@ -40,6 +40,7 @@ export interface Workout {
   emoji: WorkoutEmoji;
   emojiBg: MarkerColor;
   marker: MarkerColor;
+  icon?: string; // default workout icon shown until the workout is rated
   exercises: Exercise[];
   notes?: string;
   notifyMinutesBefore?: number;

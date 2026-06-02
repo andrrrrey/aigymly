@@ -95,6 +95,7 @@ export default function WorkoutPage() {
       emoji: 'neutral' as WorkoutEmoji,
       emojiBg: 'gray' as MarkerColor,
       marker: 'gray' as MarkerColor,
+      icon: '/img/normal.svg',
       exercises: [],
       notifyMinutesBefore: notify,
     });
@@ -284,7 +285,7 @@ export default function WorkoutPage() {
         isNew={isNew}
         onMood={(emoji, color) => {
           if (workoutId) {
-            updateWorkout(workoutId, { emoji, emojiBg: color, marker: color });
+            updateWorkout(workoutId, { emoji, emojiBg: color, marker: color, icon: '' });
           }
         }}
       />

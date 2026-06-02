@@ -7,6 +7,7 @@ import { EXERCISE_LIBRARY, MUSCLE_GROUPS_RU, createExerciseFromTemplate, type Ex
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { MuscleGroupIcon } from './icons/MuscleGroupIcon';
+import { useGender } from '@/lib/useGender';
 import type { Exercise } from '@/types';
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 
 export function ExercisePicker({ open, onClose, onPick }: Props) {
   const { customExercises, addCustomExercise } = useApp();
+  const gender = useGender();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<string>('Все');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -86,7 +88,7 @@ export function ExercisePicker({ open, onClose, onPick }: Props) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[80vh] max-w-[440px] flex-col rounded-t-3xl bg-white shadow-elevated"
+            className="fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[85dvh] max-w-[440px] flex-col rounded-t-3xl bg-white shadow-elevated"
           >
             <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-4">
               <div className="mx-auto h-1 w-10 rounded-full bg-ink-200" />
@@ -151,7 +153,7 @@ export function ExercisePicker({ open, onClose, onPick }: Props) {
                             )}
                           >
                             <span className={cn('opacity-80', newGroup === g && 'opacity-100')}>
-                              <MuscleGroupIcon group={g} size={14} />
+                              <MuscleGroupIcon group={g} gender={gender} size={14} />
                             </span>
                             {g}
                           </button>
@@ -231,12 +233,15 @@ export function ExercisePicker({ open, onClose, onPick }: Props) {
                         key={g}
                         onClick={() => setGroup(g)}
                         className={cn(
-                          'tappable shrink-0 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors',
+                          'tappable flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors',
                           group === g
                             ? 'bg-brand text-white'
                             : 'bg-ink-100 text-ink-700'
                         )}
                       >
+                        <span className={cn('opacity-80', group === g && 'opacity-100')}>
+                          <MuscleGroupIcon group={g} gender={gender} size={16} />
+                        </span>
                         {g}
                       </button>
                     ))}
@@ -267,7 +272,7 @@ export function ExercisePicker({ open, onClose, onPick }: Props) {
                         className="tappable flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-ink-50"
                       >
                         <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-ink-100">
-                          <MuscleGroupIcon group={ex.muscleGroupRu} size={28} />
+                          <MuscleGroupIcon group={ex.muscleGroupRu} gender={gender} size={28} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-[15px] font-medium text-ink-900">

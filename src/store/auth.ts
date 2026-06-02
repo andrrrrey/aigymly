@@ -4,6 +4,7 @@ import { create } from 'zustand'
 export interface AuthUser {
   email: string
   emailVerified: boolean
+  sex?: 'male' | 'female' | null
 }
 
 interface AuthState {
@@ -12,6 +13,7 @@ interface AuthState {
   hydrate: () => Promise<void>
   logout: () => Promise<void>
   markEmailVerified: () => void
+  updateSex: (sex: 'male' | 'female') => Promise<void>
 }
 
 export const useAuth = create<AuthState>((set) => ({
@@ -39,4 +41,14 @@ export const useAuth = create<AuthState>((set) => ({
 
   markEmailVerified: () =>
     set((s) => s.user ? { user: { ...s.user, emailVerified: true } } : {}),
+
+  updateSex: async (sex) => {
+    // Optimistic update
+    set((s) => (s.user ? { user: { ...s.user, sex } } : {}))
+    await fetch('/api/auth/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sex }),
+    }).catch(() => {})
+  },
 }))

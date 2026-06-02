@@ -240,6 +240,7 @@ function RegisterView({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [sex, setSex] = useState<'male' | 'female'>('male')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [emailError, setEmailError] = useState('')
@@ -253,7 +254,7 @@ function RegisterView({
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, confirmPassword: confirm }),
+        body: JSON.stringify({ email, password, confirmPassword: confirm, sex }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -308,6 +309,24 @@ function RegisterView({
         onChange={(e) => setConfirm(e.target.value)}
         required
       />
+
+      <div>
+        <div className="mb-1.5 text-[13px] font-medium text-ink-500">Пол</div>
+        <div className="flex gap-2">
+          {(['male', 'female'] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setSex(s)}
+              className={`tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium transition-colors ${
+                sex === s ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
+              }`}
+            >
+              {s === 'male' ? 'Мужчина' : 'Женщина'}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <SubmitButton loading={loading} label="Зарегистрироваться" />
 
