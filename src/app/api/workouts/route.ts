@@ -20,6 +20,7 @@ export async function GET() {
     emoji: r.emoji,
     emojiBg: r.emojiBg,
     marker: r.marker,
+    icon: r.icon ?? undefined,
     exercises: JSON.parse(r.exercises),
     notes: r.notes ?? undefined,
     notifyMinutesBefore: r.notifyMinutesBefore ?? undefined,
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
 
   const body = await req.json()
-  const { id, title, date, startTime, endTime, emoji, emojiBg, marker, exercises, notes, notifyMinutesBefore, completed } = body
+  const { id, title, date, startTime, endTime, emoji, emojiBg, marker, icon, exercises, notes, notifyMinutesBefore, completed } = body
 
   const workout = await db.workout.upsert({
     where: { id: id ?? '__new__' },
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
       emoji: emoji ?? 'happy',
       emojiBg: emojiBg ?? 'yellow',
       marker: marker ?? 'blue',
+      icon: icon || null,
       exercises: JSON.stringify(exercises ?? []),
       notes: notes ?? null,
       notifyMinutesBefore: notifyMinutesBefore ?? null,
@@ -61,6 +63,7 @@ export async function POST(req: Request) {
       emoji: emoji ?? 'happy',
       emojiBg: emojiBg ?? 'yellow',
       marker: marker ?? 'blue',
+      icon: icon || null,
       exercises: JSON.stringify(exercises ?? []),
       notes: notes ?? null,
       notifyMinutesBefore: notifyMinutesBefore ?? null,

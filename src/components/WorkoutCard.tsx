@@ -37,7 +37,12 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
             EMOJI_BG[workout.emojiBg]
           )}
         >
-          <EmojiFace variant={workout.emoji} size={40} />
+          {workout.icon ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={workout.icon} alt="" width={40} height={40} className="object-contain" />
+          ) : (
+            <EmojiFace variant={workout.emoji} size={40} />
+          )}
         </div>
         <div className="min-w-0 flex-1 py-1">
           <div className="flex items-center gap-1.5">
