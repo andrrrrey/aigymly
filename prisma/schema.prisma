@@ -17,6 +17,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   tokens        Token[]
   workouts      Workout[]
+  programs      Program[]
 }
 
 model Workout {
@@ -52,4 +53,29 @@ model Token {
 enum TokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+}
+
+model Program {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  goal        String?
+  data        String   @default("{}") // JSON: { days: ProgramDay[] }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

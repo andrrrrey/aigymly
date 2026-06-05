@@ -68,6 +68,25 @@ export type Equipment =
   | 'bodyweight_only'
   | 'cardio_machines';
 
+// AI-generated training program
+export interface ProgramDay {
+  id: string;
+  title: string; // "День 1 — Грудь и трицепс"
+  focus?: string; // muscle focus
+  weekday?: number; // 0-6, Mon=0 — recommended day
+  exercises: Exercise[];
+  notes?: string;
+}
+
+export interface Program {
+  id: string;
+  title: string;
+  description?: string;
+  goal?: FitnessGoal;
+  days: ProgramDay[];
+  createdAt?: string;
+}
+
 export interface QuestionnaireAnswers {
   goal?: FitnessGoal;
   experience?: Experience;
