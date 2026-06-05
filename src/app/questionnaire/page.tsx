@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '@/store/app';
+import { useAuth } from '@/store/auth';
+import { AuthSheet } from '@/components/auth/AuthSheet';
 import { cn } from '@/lib/utils';
 import type { Equipment, Experience, FitnessGoal, Location } from '@/types';
 
@@ -59,8 +61,11 @@ const MUSCLES = ['Грудь', 'Спина', 'Ноги', 'Плечи', 'Руки
 export default function QuestionnairePage() {
   const router = useRouter();
   const { questionnaire, updateQuestionnaire } = useApp();
+  const user = useAuth((s) => s.user);
   const [stepIdx, setStepIdx] = useState(0);
   const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
   const step = STEPS[stepIdx];
 
   const next = () => {
@@ -72,11 +77,38 @@ export default function QuestionnairePage() {
   };
 
   const handleGenerate = async () => {
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
     setGenerating(true);
-    // Hook for real Claude API. For now — simulate.
-    await new Promise((r) => setTimeout(r, 1800));
-    setGenerating(false);
-    router.push('/programs');
+    setError(null);
+    try {
+      const res = await fetch('/api/ai/generate-program', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(questionnaire),
+      });
+      if (res.status === 401) {
+        setAuthOpen(true);
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.error === 'OPENAI_KEY_MISSING') {
+          setError('Генерация недоступна: администратор ещё не настроил ключ OpenAI.');
+        } else {
+          setError('Не удалось собрать программу. Попробуй ещё раз.');
+        }
+        return;
+      }
+      const program = await res.json();
+      router.push('/programs/' + program.id);
+    } catch {
+      setError('Ошибка сети. Проверь соединение и попробуй снова.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const canProceed = (() => {
@@ -162,6 +194,9 @@ export default function QuestionnairePage() {
         className="shrink-0 border-t border-ink-100 bg-white px-5 py-3"
         style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
       >
+        {error && (
+          <p className="mb-2.5 text-center text-[13px] text-marker-red">{error}</p>
+        )}
         {step === 'summary' ? (
           <button
             onClick={handleGenerate}
@@ -201,6 +236,8 @@ export default function QuestionnairePage() {
           </button>
         )}
       </div>
+
+      <AuthSheet open={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
 }
