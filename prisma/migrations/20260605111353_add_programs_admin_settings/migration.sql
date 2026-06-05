@@ -1,8 +1,15 @@
--- AlterTable
-ALTER TABLE "User" ADD COLUMN "sex" TEXT;
+-- Idempotent migration.
+--
+-- Production (and other long-lived databases) gained `User.sex` and the
+-- `Workout` table via `prisma db push` before migrations were used here, so
+-- this migration must not fail when those objects already exist. The new
+-- objects for this feature are the Program, Admin and Setting tables.
+--
+-- Note: a brand-new database should be initialised with `prisma db push`
+-- (the baseline migration does not yet include `Workout`/`sex`).
 
 -- CreateTable
-CREATE TABLE "Workout" (
+CREATE TABLE IF NOT EXISTS "Workout" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -23,7 +30,7 @@ CREATE TABLE "Workout" (
 );
 
 -- CreateTable
-CREATE TABLE "Program" (
+CREATE TABLE IF NOT EXISTS "Program" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -36,7 +43,7 @@ CREATE TABLE "Program" (
 );
 
 -- CreateTable
-CREATE TABLE "Admin" (
+CREATE TABLE IF NOT EXISTS "Admin" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "username" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
@@ -44,11 +51,11 @@ CREATE TABLE "Admin" (
 );
 
 -- CreateTable
-CREATE TABLE "Setting" (
+CREATE TABLE IF NOT EXISTS "Setting" (
     "key" TEXT NOT NULL PRIMARY KEY,
     "value" TEXT NOT NULL,
     "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Admin_username_key" ON "Admin"("username");
+CREATE UNIQUE INDEX IF NOT EXISTS "Admin_username_key" ON "Admin"("username");
