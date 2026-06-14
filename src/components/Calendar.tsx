@@ -267,6 +267,8 @@ function DayCell({
           'tabular flex h-9 w-9 items-center justify-center rounded-[10px] text-[17px] font-medium transition-colors',
           isToday
             ? 'bg-brand text-white shadow-[0_2px_8px_rgba(47,107,255,0.35)]'
+            : isSelected
+            ? 'bg-brand/15 text-ink-900'
             : isCurrentMonth
             ? 'text-ink-900'
             : 'text-ink-300'
