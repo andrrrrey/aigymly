@@ -6,10 +6,7 @@ import { ChevronLeft, CalendarPlus, Check, Dumbbell, Timer, Sparkles, Trash2 } f
 import { AnimatePresence, motion } from 'framer-motion';
 import { useApp } from '@/store/app';
 import { cn, addMinutesToTime, addDaysISO, nextDateForWeekday } from '@/lib/utils';
-import type { MarkerColor, Program, ProgramBlock, ProgramDay, Workout, WorkoutEmoji } from '@/types';
-
-const DAY_MARKERS: MarkerColor[] = ['blue', 'green', 'purple', 'orange', 'cyan', 'red'];
-const DAY_EMOJIS: WorkoutEmoji[] = ['flex', 'fire', 'cool', 'happy', 'wink'];
+import type { Program, ProgramBlock, ProgramDay, Workout } from '@/types';
 
 export default function ProgramDetailPage() {
   const params = useParams<{ id: string }>();
@@ -120,7 +117,7 @@ export default function ProgramDetailPage() {
 
   const dayToWorkout = (
     day: ProgramDay,
-    idx: number,
+    _idx: number,
     date: string,
     title?: string
   ): Omit<Workout, 'id'> => ({
@@ -128,9 +125,11 @@ export default function ProgramDetailPage() {
     date,
     startTime,
     endTime: addMinutesToTime(startTime, durationMin),
-    emoji: DAY_EMOJIS[idx % DAY_EMOJIS.length],
-    emojiBg: DAY_MARKERS[idx % DAY_MARKERS.length],
-    marker: DAY_MARKERS[idx % DAY_MARKERS.length],
+    // Same neutral/gray default as a manually-created workout (until rated).
+    emoji: 'neutral',
+    emojiBg: 'gray',
+    marker: 'gray',
+    icon: '/img/normal.svg',
     exercises: day.exercises,
     completed: false,
   });

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { format, parseISO, startOfWeek } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Plus, X } from 'lucide-react';
 import { Calendar } from '@/components/Calendar';
@@ -28,14 +28,6 @@ export default function HomePage() {
 
   const today = useToday();
   const todayStr = format(today, 'yyyy-MM-dd');
-
-  // On mount: reset selectedDate to today if it's from a past week
-  useEffect(() => {
-    const thisWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    if (selectedDate < thisWeekStart) {
-      setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // All workouts grouped by date, sorted chronologically (past + future)
   const groupedWorkouts = useMemo(() => {
@@ -86,20 +78,22 @@ export default function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayedGroups, filterDate, setSelectedDate]);
 
-  // Initial scroll: anchor the full agenda at today or the nearest future date,
-  // leaving past dates reachable by scrolling up. Runs once the list loads.
+  // Initial anchor: once the list first loads, position the full agenda at
+  // today or the nearest future date (past stays reachable by scrolling up) and
+  // sync the week strip to that first visible date.
   useEffect(() => {
     if (didInitialScroll.current || filterDate || groupedWorkouts.length === 0) return;
     didInitialScroll.current = true;
     const dates = groupedWorkouts.map(([d]) => d).sort();
     const target = dates.find((d) => d >= todayStr) ?? dates[dates.length - 1];
-    const el = target ? sectionRefs.current.get(target) : null;
+    setSelectedDate(target);
+    const el = sectionRefs.current.get(target);
     if (el) {
       scrollingToDate.current = true;
       el.scrollIntoView({ behavior: 'instant', block: 'start' });
-      setTimeout(() => { scrollingToDate.current = false; }, 300);
+      setTimeout(() => { scrollingToDate.current = false; }, 350);
     }
-  }, [groupedWorkouts, filterDate, todayStr]);
+  }, [groupedWorkouts, filterDate, todayStr, setSelectedDate]);
 
   // Tapping a calendar day toggles the single-date filter for the list.
   const handleDayTap = (date: string) => {
@@ -120,7 +114,7 @@ export default function HomePage() {
         className="shrink-0 bg-white"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <Calendar onDayTap={handleDayTap} />
+        <Calendar onDayTap={handleDayTap} highlightDate={filterDate} />
       </header>
 
       <main

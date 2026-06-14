@@ -36,9 +36,18 @@ function getWeeks3(anchor: Date): [Date[], Date[], Date[]] {
   ];
 }
 
-export function Calendar({ onDayTap }: { onDayTap?: (date: string) => void } = {}) {
+export function Calendar({
+  onDayTap,
+  highlightDate,
+}: {
+  onDayTap?: (date: string) => void;
+  highlightDate?: string | null;
+} = {}) {
   const { selectedDate, setSelectedDate, workouts } = useApp();
   const selected = parseISO(selectedDate);
+  // Light-blue highlight is shown only for an explicitly tapped date, not while
+  // the list scrolls (which still moves `selected`/the visible week).
+  const highlight = highlightDate ? parseISO(highlightDate) : null;
   const today = useToday();
   const [expanded, setExpanded] = useState(false);
 
@@ -186,7 +195,7 @@ export function Calendar({ onDayTap }: { onDayTap?: (date: string) => void } = {
                     <DayCell
                       key={day.toISOString()}
                       day={day}
-                      isSelected={isSameDay(day, selected)}
+                      isSelected={!!highlight && isSameDay(day, highlight)}
                       isToday={isSameDay(day, today)}
                       isCurrentMonth={isSameMonth(day, selected)}
                       markers={markersByDate.get(dateKey) ?? []}
@@ -223,7 +232,7 @@ export function Calendar({ onDayTap }: { onDayTap?: (date: string) => void } = {
                       <DayCell
                         key={day.toISOString()}
                         day={day}
-                        isSelected={isSameDay(day, selected)}
+                        isSelected={!!highlight && isSameDay(day, highlight)}
                         isToday={isSameDay(day, today)}
                         isCurrentMonth
                         markers={markersByDate.get(dateKey) ?? []}
