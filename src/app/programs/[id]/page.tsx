@@ -6,7 +6,7 @@ import { ChevronLeft, CalendarPlus, Check, Dumbbell, Timer } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion';
 import { useApp } from '@/store/app';
 import { cn, addMinutesToTime, addDaysISO, nextDateForWeekday } from '@/lib/utils';
-import type { MarkerColor, Program, ProgramDay, Workout, WorkoutEmoji } from '@/types';
+import type { MarkerColor, Program, ProgramBlock, ProgramDay, Workout, WorkoutEmoji } from '@/types';
 
 const DAY_MARKERS: MarkerColor[] = ['blue', 'green', 'purple', 'orange', 'cyan', 'red'];
 const DAY_EMOJIS: WorkoutEmoji[] = ['flex', 'fire', 'cool', 'happy', 'wink'];
@@ -55,8 +55,22 @@ export default function ProgramDetailPage() {
     setTimeout(() => setToast(null), 2200);
   };
 
-  const dayToWorkout = (day: ProgramDay, idx: number, date: string): Omit<Workout, 'id'> => ({
-    title: day.title,
+  // Blocks to render/schedule: real mesocycle blocks, or a single legacy block.
+  const blocks: ProgramBlock[] =
+    program?.blocks && program.blocks.length
+      ? program.blocks
+      : program
+        ? [{ name: 'Программа', weeks: '', days: program.days }]
+        : [];
+  const isMeso = (program?.blocks?.length ?? 0) > 1;
+
+  const dayToWorkout = (
+    day: ProgramDay,
+    idx: number,
+    date: string,
+    title?: string
+  ): Omit<Workout, 'id'> => ({
+    title: title ?? day.title,
     date,
     startTime,
     endTime: addMinutesToTime(startTime, durationMin),
@@ -73,9 +87,25 @@ export default function ProgramDetailPage() {
       addWorkout(dayToWorkout(picker.day, picker.idx, pickDate));
       showToast('Тренировка добавлена в календарь');
     } else {
-      const dates = computeScheduleDates(pickDate, program.days, questionnaire.preferredDays);
-      program.days.forEach((day, i) => addWorkout(dayToWorkout(day, i, dates[i])));
-      showToast(`Запланировано тренировок: ${program.days.length}`);
+      // Block 1 → weeks 1–4, Block 2 → weeks 5–8 (legacy: one cycle).
+      const weeksPerBlock = isMeso ? 4 : 1;
+      const schedule = computeProgramSchedule(
+        pickDate,
+        blocks,
+        weeksPerBlock,
+        questionnaire.preferredDays
+      );
+      schedule.forEach(({ day, dayIndex, date, weekNumber }) =>
+        addWorkout(
+          dayToWorkout(
+            day,
+            dayIndex,
+            date,
+            isMeso ? `Неделя ${weekNumber} · ${day.title}` : day.title
+          )
+        )
+      );
+      showToast(`Запланировано тренировок: ${schedule.length}`);
     }
     setPicker(null);
   };
@@ -134,18 +164,46 @@ export default function ProgramDetailPage() {
           Запланировать всю программу
         </button>
 
-        <div className="mt-6 space-y-3">
-          {program.days.map((day, idx) => (
-            <DayCard
-              key={day.id}
-              day={day}
-              onAdd={() => {
-                setPickDate(new Date().toISOString().slice(0, 10));
-                setPicker({ mode: 'single', day, idx });
-              }}
-            />
-          ))}
-        </div>
+        {program.analysis && (
+          <div className="mt-6 space-y-2.5">
+            {program.analysis.profile && (
+              <AnalysisCard title="Анализ профиля" text={program.analysis.profile} />
+            )}
+            {program.analysis.strategy && (
+              <AnalysisCard title="Стратегия под цели" text={program.analysis.strategy} />
+            )}
+            {program.analysis.recommendations && (
+              <AnalysisCard title="Рекомендации" text={program.analysis.recommendations} />
+            )}
+          </div>
+        )}
+
+        {blocks.map((block, bi) => (
+          <div key={bi} className="mt-6">
+            {(block.name || block.weeks) && (
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="text-[17px] font-semibold tracking-tight text-ink-900">
+                  {block.name}
+                </h2>
+                {block.weeks && (
+                  <span className="text-[13px] text-ink-400">{block.weeks}</span>
+                )}
+              </div>
+            )}
+            <div className="space-y-3">
+              {block.days.map((day, idx) => (
+                <DayCard
+                  key={day.id}
+                  day={day}
+                  onAdd={() => {
+                    setPickDate(new Date().toISOString().slice(0, 10));
+                    setPicker({ mode: 'single', day, idx });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
       </main>
 
       {/* Toast */}
@@ -292,6 +350,17 @@ function DayCard({ day, onAdd }: { day: ProgramDay; onAdd: () => void }) {
   );
 }
 
+function AnalysisCard({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl border border-ink-100 bg-ink-50 p-4">
+      <h3 className="text-[14px] font-semibold text-ink-900">{title}</h3>
+      <p className="mt-1.5 whitespace-pre-line text-[13px] leading-relaxed text-ink-600">
+        {text}
+      </p>
+    </div>
+  );
+}
+
 function formatCardio(durationSec?: number, distanceM?: number): string {
   const parts: string[] = [];
   if (durationSec) parts.push(`${Math.round(durationSec / 60)} мин`);
@@ -299,25 +368,43 @@ function formatCardio(durationSec?: number, distanceM?: number): string {
   return parts.join(' · ') || 'кардио';
 }
 
-// Maps each program day to a concrete date.
-// With preferred weekdays: cycles through them week by week.
-// Without: spaces workouts every other day.
-function computeScheduleDates(
+interface ScheduledDay {
+  day: ProgramDay;
+  dayIndex: number;
+  date: string;
+  weekNumber: number;
+  blockIndex: number;
+}
+
+// Lays the program across the calendar: each block's weekly split repeated for
+// `weeksPerBlock` weeks (Block 1 → weeks 1–4, Block 2 → weeks 5–8).
+// With preferred weekdays: cycles through them; without: spaces every other day.
+function computeProgramSchedule(
   startISO: string,
-  days: ProgramDay[],
+  blocks: ProgramBlock[],
+  weeksPerBlock: number,
   preferredDays?: number[]
-): string[] {
+): ScheduledDay[] {
   const pdays = (preferredDays ?? []).slice().sort((a, b) => a - b);
-  if (pdays.length === 0) {
-    return days.map((_, i) => addDaysISO(startISO, i * 2));
-  }
-  const dates: string[] = [];
+  const out: ScheduledDay[] = [];
   let cursor = startISO;
-  for (let i = 0; i < days.length; i++) {
-    const wd = pdays[i % pdays.length];
-    const date = nextDateForWeekday(cursor, wd);
-    dates.push(date);
-    cursor = addDaysISO(date, 1);
-  }
-  return dates;
+  let weekNumber = 0;
+  blocks.forEach((block, blockIndex) => {
+    for (let w = 0; w < weeksPerBlock; w++) {
+      weekNumber++;
+      block.days.forEach((day, dayIndex) => {
+        let date: string;
+        if (pdays.length) {
+          const wd = pdays[dayIndex % pdays.length];
+          date = nextDateForWeekday(cursor, wd);
+          cursor = addDaysISO(date, 1);
+        } else {
+          date = cursor;
+          cursor = addDaysISO(cursor, 2);
+        }
+        out.push({ day, dayIndex, date, weekNumber, blockIndex });
+      });
+    }
+  });
+  return out;
 }

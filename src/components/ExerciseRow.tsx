@@ -18,7 +18,7 @@ interface Props {
 }
 
 export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHandleAttributes, isDragging }: Props) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const { addSet, updateSet, removeSet, removeExercise } = useApp();
 
   return (
@@ -49,6 +49,17 @@ export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHand
               : `${Math.round((exercise.durationSec ?? 0) / 60)} мин`}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            removeExercise(workoutId, exercise.id);
+          }}
+          className="tappable grid h-8 w-8 shrink-0 place-items-center rounded-md text-ink-300 hover:bg-marker-red/10 hover:text-marker-red"
+          aria-label="Удалить упражнение"
+        >
+          <Trash2 size={16} />
+        </button>
         <motion.div
           animate={{ rotate: open ? 180 : 0 }}
           transition={{ duration: 0.2 }}
@@ -82,13 +93,6 @@ export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHand
                   onChange={() => { /* could update via separate action */ }}
                 />
               )}
-              <button
-                onClick={() => removeExercise(workoutId, exercise.id)}
-                className="tappable mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-medium text-marker-red hover:bg-marker-red/5"
-              >
-                <Trash2 size={14} />
-                Удалить упражнение
-              </button>
             </div>
           </motion.div>
         )}
@@ -113,8 +117,8 @@ function StrengthSets({
     <div className="space-y-1.5">
       <div className="grid grid-cols-[24px_1fr_1fr_32px_32px] items-center gap-2 px-1 pb-1 text-[11px] uppercase tracking-wider text-ink-400">
         <div>#</div>
-        <div>Повторы</div>
         <div>Вес, кг</div>
+        <div>Повторы</div>
         <div />
         <div />
       </div>
@@ -128,18 +132,18 @@ function StrengthSets({
         >
           <div className="tabular text-[14px] font-medium text-ink-500">{idx + 1}</div>
           <NumberInput
-            value={set.reps}
-            onChange={(v) => onUpdate(set.id, { reps: v })}
-            min={0}
-            max={999}
-          />
-          <NumberInput
             value={set.weightKg}
             onChange={(v) => onUpdate(set.id, { weightKg: v })}
             min={0}
             max={999}
             step={2.5}
             decimal
+          />
+          <NumberInput
+            value={set.reps}
+            onChange={(v) => onUpdate(set.id, { reps: v })}
+            min={0}
+            max={999}
           />
           <button
             onClick={() => onUpdate(set.id, { done: !set.done })}

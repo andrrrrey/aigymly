@@ -24,7 +24,12 @@ export async function POST(req: Request) {
         title: program.title,
         description: program.description ?? null,
         goal: program.goal ?? null,
-        data: JSON.stringify({ days: program.days }),
+        data: JSON.stringify({
+          days: program.days,
+          blocks: program.blocks,
+          analysis: program.analysis,
+          weeksTotal: program.weeksTotal,
+        }),
       },
     })
 

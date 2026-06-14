@@ -70,7 +70,7 @@ export default function ProgramsPage() {
                 Программа от AI
               </h3>
               <p className="mt-1 text-[13px] leading-snug text-white/85">
-                Ответь на 10 вопросов — AI соберёт персональную программу под твою цель
+                Ответь на несколько вопросов — AI соберёт персональную программу на 8 недель
               </p>
             </div>
             <ChevronRight size={20} className="shrink-0 text-white/70" />
