@@ -4,30 +4,34 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, parseISO, startOfWeek } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Calendar } from '@/components/Calendar';
 import { WorkoutCard } from '@/components/WorkoutCard';
 import { BottomNav } from '@/components/BottomNav';
 import { useApp } from '@/store/app';
 import { useAuth } from '@/store/auth';
 import { AuthSheet } from '@/components/auth/AuthSheet';
+import { useToday } from '@/hooks/useToday';
 
 export default function HomePage() {
   const router = useRouter();
   const { workouts, selectedDate, setSelectedDate } = useApp();
   const user = useAuth((s) => s.user);
   const [authOpen, setAuthOpen] = useState(false);
+  // When set, the list is filtered to a single tapped date; otherwise it shows
+  // the upcoming agenda (today and future).
+  const [filterDate, setFilterDate] = useState<string | null>(null);
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollingToDate = useRef(false);
-  const didInitialScroll = useRef(false);
+
+  const today = useToday();
+  const todayStr = format(today, 'yyyy-MM-dd');
 
   // On mount: reset selectedDate to today if it's from a past week
   useEffect(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
     const thisWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
     if (selectedDate < thisWeekStart) {
-      setSelectedDate(todayStr);
+      setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -47,16 +51,22 @@ export default function HomePage() {
     return Array.from(groups.entries());
   }, [workouts]);
 
+  // What the list renders: a single tapped date, or the upcoming agenda so the
+  // top item is always today or the nearest future date with a workout.
+  const displayedGroups = useMemo(() => {
+    if (filterDate) return groupedWorkouts.filter(([d]) => d === filterDate);
+    return groupedWorkouts.filter(([d]) => d >= todayStr);
+  }, [groupedWorkouts, filterDate, todayStr]);
+
   // IntersectionObserver: when a date section enters the viewport, update
-  // selectedDate so the calendar week strip follows the scroll position.
+  // selectedDate so the calendar week strip follows the scroll position
+  // (agenda mode only — filtered mode shows a single section).
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container) return;
+    if (!container || filterDate) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (scrollingToDate.current) return;
-        // Pick the topmost visible section
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -70,36 +80,13 @@ export default function HomePage() {
 
     sectionRefs.current.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  // Re-run when the list of sections changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupedWorkouts, setSelectedDate]);
+  }, [displayedGroups, filterDate, setSelectedDate]);
 
-  // Initial scroll: runs when workout list first becomes non-empty
-  useEffect(() => {
-    if (didInitialScroll.current || groupedWorkouts.length === 0) return;
-    didInitialScroll.current = true;
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const dates = groupedWorkouts.map(([d]) => d).sort();
-    const target = dates.find((d) => d >= todayStr) ?? dates[dates.length - 1];
-    if (!target) return;
-    const el = sectionRefs.current.get(target);
-    if (el) {
-      scrollingToDate.current = true;
-      el.scrollIntoView({ behavior: 'instant', block: 'start' });
-      setTimeout(() => { scrollingToDate.current = false; }, 300);
-    }
-  }, [groupedWorkouts]);
-
-  // Scroll to selectedDate when user taps a calendar day
-  useEffect(() => {
-    if (!didInitialScroll.current) return;
-    const el = sectionRefs.current.get(selectedDate);
-    if (!el) return;
-    scrollingToDate.current = true;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const t = setTimeout(() => { scrollingToDate.current = false; }, 600);
-    return () => clearTimeout(t);
-  }, [selectedDate]);
+  // Tapping a calendar day toggles the single-date filter for the list.
+  const handleDayTap = (date: string) => {
+    setFilterDate((cur) => (cur === date ? null : date));
+  };
 
   const handleCreate = () => {
     if (!user) {
@@ -115,7 +102,7 @@ export default function HomePage() {
         className="shrink-0 bg-white"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <Calendar />
+        <Calendar onDayTap={handleDayTap} />
       </header>
 
       <main
@@ -123,11 +110,31 @@ export default function HomePage() {
         className="no-scrollbar scroll-smooth-momentum relative flex-1 overflow-y-auto bg-white"
       >
         <div className="border-t border-ink-100" />
+        {filterDate && (
+          <div className="flex items-center justify-between gap-3 px-5 pt-4">
+            <span className="text-[13px] font-medium text-ink-500">
+              {format(parseISO(filterDate), 'd MMMM, EEEE', { locale: ru }).replace(
+                /^./,
+                (c) => c.toUpperCase()
+              )}
+            </span>
+            <button
+              onClick={() => setFilterDate(null)}
+              className="tappable flex items-center gap-1 rounded-full bg-ink-100 py-1.5 pl-3 pr-2.5 text-[13px] font-semibold text-ink-700"
+            >
+              Показать все дни
+              <X size={14} />
+            </button>
+          </div>
+        )}
         <div className="space-y-5 px-5 pb-28 pt-5">
-          {groupedWorkouts.length === 0 ? (
-            <EmptyState onCreate={handleCreate} />
+          {displayedGroups.length === 0 ? (
+            <EmptyState
+              onCreate={handleCreate}
+              title={filterDate ? 'На этот день пусто' : 'Нет предстоящих тренировок'}
+            />
           ) : (
-            groupedWorkouts.map(([date, list]) => (
+            displayedGroups.map(([date, list]) => (
               <section
                 key={date}
                 data-date={date}
@@ -170,7 +177,7 @@ export default function HomePage() {
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate, title }: { onCreate: () => void; title: string }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 pt-16 text-center">
       <div className="grid h-20 w-20 place-items-center rounded-3xl bg-ink-100">
@@ -184,7 +191,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         </svg>
       </div>
       <h3 className="mt-5 text-[17px] font-semibold text-ink-900">
-        На этот день пусто
+        {title}
       </h3>
       <p className="mt-1 max-w-[260px] text-[14px] leading-snug text-ink-400">
         Создай тренировку или попроси AI собрать программу под твою цель

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, CalendarPlus, Check, Dumbbell, Timer } from 'lucide-react';
+import { ChevronLeft, CalendarPlus, Check, Dumbbell, Timer, Sparkles, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useApp } from '@/store/app';
 import { cn, addMinutesToTime, addDaysISO, nextDateForWeekday } from '@/lib/utils';
@@ -24,6 +24,13 @@ export default function ProgramDetailPage() {
   const [picker, setPicker] = useState<null | { mode: 'single'; day: ProgramDay; idx: number } | { mode: 'all' }>(null);
   const [pickDate, setPickDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toast, setToast] = useState<string | null>(null);
+
+  // Regenerate sheet + comment, and delete confirmation sheet.
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenComment, setRegenComment] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -53,6 +60,53 @@ export default function ProgramDetailPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
+  };
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      const res = await fetch('/api/programs/' + params.id + '/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: regenComment }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.error === 'ANSWERS_MISSING') {
+          showToast('Перегенерация недоступна для этой программы');
+        } else if (data?.error === 'OPENAI_KEY_MISSING') {
+          showToast('Генерация недоступна: не настроен ключ OpenAI');
+        } else {
+          showToast('Не удалось перегенерировать. Попробуй ещё раз');
+        }
+        return;
+      }
+      const updated: Program = await res.json();
+      setProgram(updated);
+      setRegenOpen(false);
+      setRegenComment('');
+      showToast('Программа перегенерирована');
+    } catch {
+      showToast('Ошибка сети. Попробуй снова');
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/programs/' + params.id, { method: 'DELETE' });
+      if (!res.ok) {
+        showToast('Не удалось удалить программу');
+        return;
+      }
+      router.push('/programs');
+    } catch {
+      showToast('Ошибка сети. Попробуй снова');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Blocks to render/schedule: real mesocycle blocks, or a single legacy block.
@@ -137,14 +191,21 @@ export default function ProgramDetailPage() {
   return (
     <>
       <header className="shrink-0 bg-white" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <div className="flex items-center gap-2 px-5 py-3">
+        <div className="flex items-center justify-between gap-2 px-5 py-3">
           <button
             onClick={() => router.push('/programs')}
-            className="tappable -ml-2 grid h-9 w-9 place-items-center rounded-full text-ink-900"
+            className="tappable -ml-1.5 flex items-center gap-1 rounded-full bg-ink-100 py-2 pl-2 pr-3.5 text-[14px] font-semibold text-ink-900"
           >
-            <ChevronLeft size={22} />
+            <ChevronLeft size={18} />
+            Программы
           </button>
-          <span className="text-[13px] font-medium text-ink-400">Программа</span>
+          <button
+            onClick={() => setDeleteOpen(true)}
+            className="tappable grid h-9 w-9 place-items-center rounded-full text-ink-400 hover:bg-marker-red/10 hover:text-marker-red"
+            aria-label="Удалить программу"
+          >
+            <Trash2 size={19} />
+          </button>
         </div>
       </header>
 
@@ -162,6 +223,14 @@ export default function ProgramDetailPage() {
         >
           <CalendarPlus size={18} />
           Запланировать всю программу
+        </button>
+
+        <button
+          onClick={() => setRegenOpen(true)}
+          className="tappable mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-brand px-5 py-3 text-[15px] font-semibold text-brand"
+        >
+          <Sparkles size={18} />
+          Перегенерировать программу
         </button>
 
         {program.analysis && (
@@ -271,6 +340,109 @@ export default function ProgramDetailPage() {
                 className="tappable mt-4 w-full rounded-full bg-brand px-5 py-3.5 text-[15px] font-semibold text-white shadow-fab"
               >
                 {picker.mode === 'single' ? 'Добавить' : 'Запланировать'}
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Regenerate sheet */}
+      <AnimatePresence>
+        {regenOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !regenerating && setRegenOpen(false)}
+              className="fixed inset-0 z-40 bg-black/30"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white p-5"
+              style={{ paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}
+            >
+              <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink-200" />
+              <h3 className="text-[17px] font-semibold text-ink-900">Перегенерировать программу</h3>
+              <p className="mt-1 text-[13px] text-ink-500">
+                Опиши, что изменить — AI пересоберёт программу с учётом твоего комментария.
+                Уже добавленные в календарь тренировки останутся.
+              </p>
+              <textarea
+                value={regenComment}
+                onChange={(e) => setRegenComment(e.target.value)}
+                rows={4}
+                placeholder="Например: меньше кардио, больше упражнений на спину, заменить приседания со штангой…"
+                className="mt-4 w-full resize-none rounded-2xl border border-ink-100 p-4 text-[14px] text-ink-900 placeholder:text-ink-400 focus:border-brand focus:outline-none"
+              />
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                className="tappable mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-brand px-5 py-3.5 text-[15px] font-semibold text-white shadow-fab disabled:opacity-60"
+              >
+                {regenerating ? (
+                  <>
+                    <motion.span
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      className="inline-block"
+                    >
+                      <Sparkles size={18} />
+                    </motion.span>
+                    AI пересобирает программу…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} />
+                    Перегенерировать
+                  </>
+                )}
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Delete confirmation sheet */}
+      <AnimatePresence>
+        {deleteOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !deleting && setDeleteOpen(false)}
+              className="fixed inset-0 z-40 bg-black/30"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white p-5"
+              style={{ paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}
+            >
+              <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink-200" />
+              <h3 className="text-[17px] font-semibold text-ink-900">Удалить программу?</h3>
+              <p className="mt-1 text-[13px] text-ink-500">
+                Программа будет удалена безвозвратно. Уже добавленные в календарь тренировки останутся.
+              </p>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="tappable mt-4 w-full rounded-full bg-marker-red px-5 py-3.5 text-[15px] font-semibold text-white disabled:opacity-60"
+              >
+                {deleting ? 'Удаление…' : 'Удалить программу'}
+              </button>
+              <button
+                onClick={() => setDeleteOpen(false)}
+                disabled={deleting}
+                className="tappable mt-2 w-full rounded-full px-5 py-3 text-[15px] font-semibold text-ink-500"
+              >
+                Отмена
               </button>
             </motion.div>
           </>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronDown, Trash2, Plus, X, Clock, GripVertical } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, type PanInfo } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import type { Exercise } from '@/types';
@@ -20,9 +20,33 @@ interface Props {
 export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHandleAttributes, isDragging }: Props) {
   const [open, setOpen] = useState(false);
   const { addSet, updateSet, removeSet, removeExercise } = useApp();
+  const x = useMotionValue(0);
+
+  const handleDragEnd = (_e: unknown, info: PanInfo) => {
+    // Swipe far enough to the left → delete. Otherwise framer springs back to 0.
+    if (info.offset.x < -80) {
+      removeExercise(workoutId, exercise.id);
+    }
+  };
 
   return (
-    <div className={cn('overflow-hidden rounded-2xl bg-white shadow-card', isDragging && 'opacity-50')}>
+    <div className="relative">
+      {/* Red layer revealed while swiping left */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-end rounded-2xl bg-marker-red pr-6">
+        <div className="flex items-center gap-1.5 text-white">
+          <Trash2 size={18} />
+          <span className="text-[13px] font-semibold">Удалить</span>
+        </div>
+      </div>
+      <motion.div
+        style={{ x }}
+        drag="x"
+        dragDirectionLock
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={{ left: 0.7, right: 0 }}
+        onDragEnd={handleDragEnd}
+        className={cn('relative overflow-hidden rounded-2xl bg-white shadow-card', isDragging && 'opacity-50')}
+      >
       <button
         onClick={() => setOpen((v) => !v)}
         className="tappable flex w-full items-center gap-3 px-3 py-3 text-left"
@@ -49,17 +73,6 @@ export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHand
               : `${Math.round((exercise.durationSec ?? 0) / 60)} мин`}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            removeExercise(workoutId, exercise.id);
-          }}
-          className="tappable grid h-8 w-8 shrink-0 place-items-center rounded-md text-ink-300 hover:bg-marker-red/10 hover:text-marker-red"
-          aria-label="Удалить упражнение"
-        >
-          <Trash2 size={16} />
-        </button>
         <motion.div
           animate={{ rotate: open ? 180 : 0 }}
           transition={{ duration: 0.2 }}
@@ -97,6 +110,7 @@ export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHand
           </motion.div>
         )}
       </AnimatePresence>
+      </motion.div>
     </div>
   );
 }

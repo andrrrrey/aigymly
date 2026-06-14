@@ -429,12 +429,16 @@ async function callOpenAI(
 }
 
 export async function generateProgram(
-  answers: QuestionnaireAnswers
+  answers: QuestionnaireAnswers,
+  comment?: string
 ): Promise<Program> {
   const apiKey = await getOpenAIKey()
   if (!apiKey) throw new OpenAIError('OPENAI_KEY_MISSING')
   const model = await getOpenAIModel()
-  const userPrompt = buildUserPrompt(answers)
+  let userPrompt = buildUserPrompt(answers)
+  if (comment?.trim()) {
+    userPrompt += `\n\nДополнительные пожелания пользователя (обязательно учти при перегенерации программы): ${comment.trim()}`
+  }
 
   // One retry on malformed JSON.
   let lastErr: unknown
