@@ -8,65 +8,138 @@ import { useApp } from '@/store/app';
 import { useAuth } from '@/store/auth';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { cn } from '@/lib/utils';
-import type { Equipment, Experience, FitnessGoal, Location } from '@/types';
+import type {
+  BodyShape,
+  Equipment,
+  Experience,
+  FitnessGoal,
+  MenstrualPhase,
+  Nutrition,
+  Occupation,
+  Sex,
+  Sleep,
+  WorkoutPlace,
+} from '@/types';
 
-const STEPS = [
-  'goal',
-  'experience',
-  'biometrics',
-  'frequency',
-  'location',
-  'equipment',
-  'muscles',
-  'injuries',
-  'preferences',
-  'summary',
-] as const;
-type Step = (typeof STEPS)[number];
+type Step =
+  | 'profile'
+  | 'goals'
+  | 'health'
+  | 'place'
+  | 'equipment'
+  | 'frequency'
+  | 'experience'
+  | 'duration'
+  | 'female'
+  | 'lifestyle'
+  | 'summary';
+
+function buildSteps(sex?: Sex): Step[] {
+  const steps: Step[] = [
+    'profile',
+    'goals',
+    'health',
+    'place',
+    'equipment',
+    'frequency',
+    'experience',
+    'duration',
+  ];
+  if (sex === 'female') steps.push('female');
+  steps.push('lifestyle', 'summary');
+  return steps;
+}
 
 const GOALS: { id: FitnessGoal; label: string; desc: string; icon: string }[] = [
   { id: 'lose_weight', label: 'Похудение', desc: 'Сжечь жир, снизить вес', icon: '🔥' },
-  { id: 'gain_muscle', label: 'Набор массы', desc: 'Гипертрофия, рост мышц', icon: '💪' },
-  { id: 'maintain', label: 'Поддержание формы', desc: 'Сохранить текущий результат', icon: '⚖️' },
-  { id: 'endurance', label: 'Выносливость', desc: 'Кардио, циклика', icon: '🏃' },
-  { id: 'mobility', label: 'Мобильность', desc: 'Гибкость, подвижность', icon: '🤸' },
-  { id: 'rehab', label: 'Реабилитация', desc: 'Восстановление после травмы', icon: '🩹' },
+  { id: 'gain_muscle', label: 'Набор мышечной массы', desc: 'Гипертрофия, рост мышц', icon: '💪' },
+  { id: 'tone', label: 'Тонус и рельеф', desc: 'Подтянутость, прорисовка', icon: '✨' },
+  { id: 'strength_endurance', label: 'Сила и выносливость', desc: 'Большие веса, работоспособность', icon: '🏋️' },
+  { id: 'rehab', label: 'Реабилитация и ЛФК', desc: 'Восстановление, безопасность', icon: '🩹' },
+  { id: 'functional', label: 'Функциональная подготовка', desc: 'Баланс, координация, мобильность', icon: '🤸' },
+  { id: 'general_health', label: 'Общее здоровье', desc: 'Самочувствие, осанка, ССС', icon: '❤️' },
 ];
 
-const EXPERIENCES: { id: Experience; label: string; desc: string }[] = [
-  { id: 'beginner', label: 'Новичок', desc: 'Менее 6 месяцев тренировок' },
-  { id: 'intermediate', label: 'Средний', desc: '6 месяцев — 2 года стажа' },
-  { id: 'advanced', label: 'Продвинутый', desc: 'Более 2 лет регулярных тренировок' },
-];
-
-const LOCATIONS: { id: Location; label: string; icon: string }[] = [
-  { id: 'gym', label: 'Зал', icon: '🏋️' },
+const PLACES: { id: WorkoutPlace; label: string; icon: string }[] = [
   { id: 'home', label: 'Дом', icon: '🏠' },
-  { id: 'outdoor', label: 'Улица', icon: '🌳' },
-  { id: 'mixed', label: 'По-разному', icon: '🔀' },
+  { id: 'outdoor', label: 'Уличная площадка', icon: '🌳' },
+  { id: 'gym', label: 'Тренажёрный зал', icon: '🏋️' },
 ];
 
 const EQUIPMENT: { id: Equipment; label: string }[] = [
-  { id: 'barbell', label: 'Штанга' },
+  { id: 'none_mat', label: 'Ничего, только коврик' },
   { id: 'dumbbells', label: 'Гантели' },
-  { id: 'machines', label: 'Тренажёры' },
-  { id: 'bands', label: 'Резинки' },
+  { id: 'barbell', label: 'Штанга и блины' },
+  { id: 'bands', label: 'Резиновые петли, эспандеры' },
   { id: 'pullup_bar', label: 'Турник' },
-  { id: 'bodyweight_only', label: 'Только своё тело' },
-  { id: 'cardio_machines', label: 'Кардиотренажёры' },
+  { id: 'parallel_bars', label: 'Брусья' },
+  { id: 'kettlebell', label: 'Гиря' },
+  { id: 'fitball', label: 'Фитбол' },
+  { id: 'jump_rope', label: 'Скакалка' },
+  { id: 'treadmill', label: 'Беговая дорожка' },
+  { id: 'bike', label: 'Велотренажёр' },
+  { id: 'elliptical', label: 'Эллиптический тренажёр' },
+  { id: 'step', label: 'Степ-платформа' },
+  { id: 'full_gym', label: 'Полный зал' },
 ];
 
-const MUSCLES = ['Грудь', 'Спина', 'Ноги', 'Плечи', 'Руки', 'Пресс', 'Ягодицы'];
+const EXPERIENCES: { id: Experience; label: string; desc: string }[] = [
+  { id: 'never', label: 'Никогда не тренировался', desc: 'Старт с нуля' },
+  { id: 'beginner', label: 'Новичок', desc: 'Менее 6 месяцев' },
+  { id: 'intermediate', label: 'Средний', desc: '6–18 месяцев' },
+  { id: 'advanced', label: 'Продвинутый', desc: 'Более 1.5 лет' },
+];
+
+const DURATIONS = [20, 30, 45, 60, 90, 120];
+
+const MENSTRUAL: { id: MenstrualPhase; label: string }[] = [
+  { id: 'skip', label: 'Не хочу указывать' },
+  { id: 'not_tracking', label: 'Не отслеживаю' },
+  { id: 'menstruation', label: 'Менструация (1–5 день)' },
+  { id: 'follicular', label: 'Фолликулярная фаза (6–14 день)' },
+  { id: 'ovulation', label: 'Овуляция (около 14 дня)' },
+  { id: 'luteal', label: 'Лютеиновая фаза (15–28 день)' },
+];
+
+const BODY_SHAPES: { id: BodyShape; label: string }[] = [
+  { id: 'pear', label: 'Груша' },
+  { id: 'apple', label: 'Яблоко' },
+  { id: 'rectangle', label: 'Прямоугольник' },
+  { id: 'hourglass', label: 'Песочные часы' },
+];
+
+const OCCUPATIONS: { id: Occupation; label: string }[] = [
+  { id: 'sedentary', label: 'Сидячая работа' },
+  { id: 'on_feet', label: 'На ногах весь день' },
+  { id: 'physical', label: 'Физический труд' },
+  { id: 'mixed', label: 'Смешанный тип' },
+];
+
+const SLEEPS: { id: Sleep; label: string }[] = [
+  { id: 'lt6', label: 'Менее 6 часов' },
+  { id: '6to7', label: '6–7 часов' },
+  { id: '7to8', label: '7–8 часов' },
+  { id: 'gt8', label: 'Более 8 часов' },
+];
+
+const NUTRITIONS: { id: Nutrition; label: string }[] = [
+  { id: 'not_tracking', label: 'Не слежу' },
+  { id: 'intuitive', label: 'Питаюсь интуитивно' },
+  { id: 'counting', label: 'Считаю калории' },
+  { id: 'specific', label: 'Специфическая диета' },
+];
 
 export default function QuestionnairePage() {
   const router = useRouter();
-  const { questionnaire, updateQuestionnaire } = useApp();
+  const { questionnaire } = useApp();
   const user = useAuth((s) => s.user);
   const [stepIdx, setStepIdx] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const step = STEPS[stepIdx];
+
+  const STEPS = buildSteps(questionnaire.sex);
+  const step = STEPS[Math.min(stepIdx, STEPS.length - 1)];
 
   const next = () => {
     if (stepIdx < STEPS.length - 1) setStepIdx((i) => i + 1);
@@ -113,23 +186,28 @@ export default function QuestionnairePage() {
 
   const canProceed = (() => {
     switch (step) {
-      case 'goal':
-        return !!questionnaire.goal;
-      case 'experience':
-        return !!questionnaire.experience;
-      case 'biometrics':
-        return !!questionnaire.age && !!questionnaire.weightKg && !!questionnaire.heightCm;
-      case 'frequency':
-        return !!questionnaire.sessionsPerWeek && !!questionnaire.sessionDurationMin;
-      case 'location':
-        return !!questionnaire.location;
+      case 'profile':
+        return (
+          !!questionnaire.sex &&
+          !!questionnaire.age &&
+          !!questionnaire.heightCm &&
+          !!questionnaire.weightKg
+        );
+      case 'goals':
+        return (questionnaire.goals?.length ?? 0) > 0;
+      case 'place':
+        return !!questionnaire.place;
       case 'equipment':
         return (questionnaire.equipment?.length ?? 0) > 0;
-      case 'muscles':
-        return true;
-      case 'injuries':
-        return true;
-      case 'preferences':
+      case 'frequency':
+        return !!questionnaire.sessionsPerWeek;
+      case 'experience':
+        return !!questionnaire.experience;
+      case 'duration':
+        return !!questionnaire.sessionDurationMin;
+      case 'health':
+      case 'female':
+      case 'lifestyle':
         return true;
       default:
         return true;
@@ -175,15 +253,16 @@ export default function QuestionnairePage() {
               exit={{ opacity: 0, x: -16 }}
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
-              {step === 'goal' && <GoalStep />}
-              {step === 'experience' && <ExperienceStep />}
-              {step === 'biometrics' && <BiometricsStep />}
-              {step === 'frequency' && <FrequencyStep />}
-              {step === 'location' && <LocationStep />}
+              {step === 'profile' && <ProfileStep />}
+              {step === 'goals' && <GoalsStep />}
+              {step === 'health' && <HealthStep />}
+              {step === 'place' && <PlaceStep />}
               {step === 'equipment' && <EquipmentStep />}
-              {step === 'muscles' && <MusclesStep />}
-              {step === 'injuries' && <InjuriesStep />}
-              {step === 'preferences' && <PreferencesStep />}
+              {step === 'frequency' && <FrequencyStep />}
+              {step === 'experience' && <ExperienceStep />}
+              {step === 'duration' && <DurationStep />}
+              {step === 'female' && <FemaleStep />}
+              {step === 'lifestyle' && <LifestyleStep />}
               {step === 'summary' && <SummaryStep />}
             </motion.div>
           </AnimatePresence>
@@ -255,77 +334,29 @@ function StepHeader({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
-function GoalStep() {
+function ProfileStep() {
   const { questionnaire, updateQuestionnaire } = useApp();
   return (
     <>
-      <StepHeader
-        title="Какая твоя цель?"
-        hint="Выбери одну — на её основе AI соберёт программу"
-      />
-      <div className="space-y-2">
-        {GOALS.map((g) => (
-          <button
-            key={g.id}
-            onClick={() => updateQuestionnaire({ goal: g.id })}
-            className={cn(
-              'tappable flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-colors',
-              questionnaire.goal === g.id
-                ? 'border-brand bg-brand/5'
-                : 'border-ink-100 bg-white'
-            )}
-          >
-            <span className="text-[22px]">{g.icon}</span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-semibold text-ink-900">{g.label}</div>
-              <div className="text-[13px] text-ink-500">{g.desc}</div>
-            </div>
-            <RadioDot active={questionnaire.goal === g.id} />
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function ExperienceStep() {
-  const { questionnaire, updateQuestionnaire } = useApp();
-  return (
-    <>
-      <StepHeader
-        title="Твой уровень подготовки?"
-        hint="Это поможет подобрать правильную нагрузку"
-      />
-      <div className="space-y-2">
-        {EXPERIENCES.map((e) => (
-          <button
-            key={e.id}
-            onClick={() => updateQuestionnaire({ experience: e.id })}
-            className={cn(
-              'tappable flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition-colors',
-              questionnaire.experience === e.id
-                ? 'border-brand bg-brand/5'
-                : 'border-ink-100 bg-white'
-            )}
-          >
-            <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-semibold text-ink-900">{e.label}</div>
-              <div className="text-[13px] text-ink-500">{e.desc}</div>
-            </div>
-            <RadioDot active={questionnaire.experience === e.id} />
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function BiometricsStep() {
-  const { questionnaire, updateQuestionnaire } = useApp();
-  return (
-    <>
-      <StepHeader title="Расскажи о себе" hint="Возраст, рост и вес для расчёта нагрузки" />
+      <StepHeader title="Базовый профиль" hint="Пол, возраст, рост и вес для расчёта нагрузки" />
       <div className="space-y-3">
+        <div className="rounded-2xl border border-ink-100 p-4">
+          <div className="mb-2 text-[13px] text-ink-500">Пол</div>
+          <div className="flex gap-2">
+            {(['male', 'female'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => updateQuestionnaire({ sex: s })}
+                className={cn(
+                  'tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium',
+                  questionnaire.sex === s ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
+                )}
+              >
+                {s === 'male' ? 'Мужской' : 'Женский'}
+              </button>
+            ))}
+          </div>
+        </div>
         <FieldInput
           label="Возраст"
           unit="лет"
@@ -344,97 +375,110 @@ function BiometricsStep() {
           value={questionnaire.weightKg ?? ''}
           onChange={(v) => updateQuestionnaire({ weightKg: v })}
         />
-        <div className="rounded-2xl border border-ink-100 p-4">
-          <div className="mb-2 text-[13px] text-ink-500">Пол</div>
-          <div className="flex gap-2">
-            {(['male', 'female', 'other'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => updateQuestionnaire({ sex: s })}
-                className={cn(
-                  'tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium',
-                  questionnaire.sex === s
-                    ? 'bg-brand text-white'
-                    : 'bg-ink-100 text-ink-700'
-                )}
-              >
-                {s === 'male' ? 'Муж' : s === 'female' ? 'Жен' : 'Другое'}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </>
   );
 }
 
-function FrequencyStep() {
+function GoalsStep() {
+  const { questionnaire, updateQuestionnaire } = useApp();
+  const goals = questionnaire.goals ?? [];
+  const toggle = (id: FitnessGoal) => {
+    const next = goals.includes(id) ? goals.filter((g) => g !== id) : [...goals, id];
+    updateQuestionnaire({ goals: next });
+  };
+  return (
+    <>
+      <StepHeader
+        title="Какие у тебя цели?"
+        hint="Можно выбрать несколько. Первая выбранная — основная."
+      />
+      <div className="space-y-2">
+        {GOALS.map((g) => {
+          const idx = goals.indexOf(g.id);
+          const active = idx >= 0;
+          return (
+            <button
+              key={g.id}
+              onClick={() => toggle(g.id)}
+              className={cn(
+                'tappable flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-colors',
+                active ? 'border-brand bg-brand/5' : 'border-ink-100 bg-white'
+              )}
+            >
+              <span className="text-[22px]">{g.icon}</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-semibold text-ink-900">{g.label}</div>
+                <div className="text-[13px] text-ink-500">{g.desc}</div>
+              </div>
+              {idx === 0 && (
+                <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold text-white">
+                  Основная
+                </span>
+              )}
+              <CheckBox active={active} />
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function HealthStep() {
   const { questionnaire, updateQuestionnaire } = useApp();
   return (
     <>
-      <StepHeader title="Как часто и как долго?" />
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-ink-100 p-4">
-          <div className="mb-3 text-[13px] text-ink-500">Тренировок в неделю</div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-              <button
-                key={n}
-                onClick={() => updateQuestionnaire({ sessionsPerWeek: n })}
-                className={cn(
-                  'tappable tabular grid h-11 place-items-center rounded-xl text-[15px] font-semibold',
-                  questionnaire.sessionsPerWeek === n
-                    ? 'bg-brand text-white'
-                    : 'bg-ink-100 text-ink-700'
-                )}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-ink-100 p-4">
-          <div className="mb-3 text-[13px] text-ink-500">Длительность тренировки</div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {([30, 45, 60, 90] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => updateQuestionnaire({ sessionDurationMin: m })}
-                className={cn(
-                  'tappable rounded-xl py-2.5 text-[14px] font-semibold',
-                  questionnaire.sessionDurationMin === m
-                    ? 'bg-brand text-white'
-                    : 'bg-ink-100 text-ink-700'
-                )}
-              >
-                {m} мин
-              </button>
-            ))}
-          </div>
-        </div>
+      <StepHeader
+        title="Здоровье и ограничения"
+        hint="AI учтёт это и подберёт безопасные движения. Любое поле можно пропустить."
+      />
+      <div className="space-y-3">
+        <HealthField
+          label="Хронические заболевания"
+          placeholder="Например: гипертония 1 степени, остеохондроз поясничного отдела. Если нет — «Здоров(а)»."
+          value={questionnaire.chronicConditions ?? ''}
+          onChange={(v) => updateQuestionnaire({ chronicConditions: v })}
+        />
+        <HealthField
+          label="Травмы и операции в прошлом"
+          placeholder="Например: разрыв ПКС правого колена, операция 2 года назад. Укажи давность."
+          value={questionnaire.pastInjuries ?? ''}
+          onChange={(v) => updateQuestionnaire({ pastInjuries: v })}
+        />
+        <HealthField
+          label="Текущие жалобы и боли"
+          placeholder="Что беспокоит сейчас? Например: ноет поясница после сидения, хрустит плечо."
+          value={questionnaire.currentComplaints ?? ''}
+          onChange={(v) => updateQuestionnaire({ currentComplaints: v })}
+        />
+        <HealthField
+          label="Противопоказания от врача"
+          placeholder="Если врач что-то запретил. Например: запрещена осевая нагрузка, исключён бег."
+          value={questionnaire.medicalRestrictions ?? ''}
+          onChange={(v) => updateQuestionnaire({ medicalRestrictions: v })}
+        />
       </div>
     </>
   );
 }
 
-function LocationStep() {
+function PlaceStep() {
   const { questionnaire, updateQuestionnaire } = useApp();
   return (
     <>
       <StepHeader title="Где ты тренируешься?" />
-      <div className="grid grid-cols-2 gap-2">
-        {LOCATIONS.map((l) => (
+      <div className="grid grid-cols-1 gap-2">
+        {PLACES.map((l) => (
           <button
             key={l.id}
-            onClick={() => updateQuestionnaire({ location: l.id })}
+            onClick={() => updateQuestionnaire({ place: l.id })}
             className={cn(
-              'tappable flex flex-col items-center gap-2 rounded-2xl border p-5 transition-colors',
-              questionnaire.location === l.id
-                ? 'border-brand bg-brand/5'
-                : 'border-ink-100 bg-white'
+              'tappable flex items-center gap-3 rounded-2xl border p-4 text-left transition-colors',
+              questionnaire.place === l.id ? 'border-brand bg-brand/5' : 'border-ink-100 bg-white'
             )}
           >
-            <span className="text-[32px]">{l.icon}</span>
+            <span className="text-[26px]">{l.icon}</span>
             <span className="text-[15px] font-semibold text-ink-900">{l.label}</span>
           </button>
         ))}
@@ -454,10 +498,7 @@ function EquipmentStep() {
   };
   return (
     <>
-      <StepHeader
-        title="Доступное оборудование"
-        hint="Выбери всё, к чему есть доступ"
-      />
+      <StepHeader title="Доступное оборудование" hint="Выбери всё, к чему есть доступ" />
       <div className="grid grid-cols-2 gap-2">
         {EQUIPMENT.map((e) => (
           <button
@@ -465,9 +506,7 @@ function EquipmentStep() {
             onClick={() => toggle(e.id)}
             className={cn(
               'tappable rounded-2xl border p-3.5 text-left transition-colors',
-              selected.has(e.id)
-                ? 'border-brand bg-brand/5'
-                : 'border-ink-100 bg-white'
+              selected.has(e.id) ? 'border-brand bg-brand/5' : 'border-ink-100 bg-white'
             )}
           >
             <span className="text-[14px] font-semibold text-ink-900">{e.label}</span>
@@ -478,34 +517,53 @@ function EquipmentStep() {
   );
 }
 
-function MusclesStep() {
+function FrequencyStep() {
   const { questionnaire, updateQuestionnaire } = useApp();
-  const selected = new Set(questionnaire.priorityMuscles ?? []);
-  const toggle = (m: string) => {
-    const next = new Set(selected);
-    if (next.has(m)) next.delete(m);
-    else next.add(m);
-    updateQuestionnaire({ priorityMuscles: Array.from(next) });
-  };
   return (
     <>
-      <StepHeader
-        title="Приоритетные группы мышц"
-        hint="Над чем хочешь поработать сильнее? Можно пропустить."
-      />
-      <div className="flex flex-wrap gap-2">
-        {MUSCLES.map((m) => (
+      <StepHeader title="Сколько тренировок в неделю?" />
+      <div className="rounded-2xl border border-ink-100 p-4">
+        <div className="grid grid-cols-7 gap-1.5">
+          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+            <button
+              key={n}
+              onClick={() => updateQuestionnaire({ sessionsPerWeek: n })}
+              className={cn(
+                'tappable tabular grid h-11 place-items-center rounded-xl text-[15px] font-semibold',
+                questionnaire.sessionsPerWeek === n
+                  ? 'bg-brand text-white'
+                  : 'bg-ink-100 text-ink-700'
+              )}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ExperienceStep() {
+  const { questionnaire, updateQuestionnaire } = useApp();
+  return (
+    <>
+      <StepHeader title="Твой уровень подготовки?" hint="Это поможет подобрать правильную нагрузку" />
+      <div className="space-y-2">
+        {EXPERIENCES.map((e) => (
           <button
-            key={m}
-            onClick={() => toggle(m)}
+            key={e.id}
+            onClick={() => updateQuestionnaire({ experience: e.id })}
             className={cn(
-              'tappable rounded-full px-4 py-2 text-[14px] font-medium transition-colors',
-              selected.has(m)
-                ? 'bg-brand text-white'
-                : 'bg-ink-100 text-ink-700'
+              'tappable flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition-colors',
+              questionnaire.experience === e.id ? 'border-brand bg-brand/5' : 'border-ink-100 bg-white'
             )}
           >
-            {m}
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-semibold text-ink-900">{e.label}</div>
+              <div className="text-[13px] text-ink-500">{e.desc}</div>
+            </div>
+            <RadioDot active={questionnaire.experience === e.id} />
           </button>
         ))}
       </div>
@@ -513,119 +571,186 @@ function MusclesStep() {
   );
 }
 
-function InjuriesStep() {
+function DurationStep() {
   const { questionnaire, updateQuestionnaire } = useApp();
   return (
     <>
-      <StepHeader
-        title="Травмы и ограничения"
-        hint="AI учтёт это и исключит опасные движения. Можно пропустить."
-      />
-      <textarea
-        value={questionnaire.injuries ?? ''}
-        onChange={(e) => updateQuestionnaire({ injuries: e.target.value })}
-        rows={5}
-        placeholder="Например: проблемы с поясницей, операция на колене 2 года назад…"
-        className="w-full resize-none rounded-2xl border border-ink-100 p-4 text-[14px] text-ink-900 placeholder:text-ink-400 focus:border-brand focus:outline-none"
-      />
-    </>
-  );
-}
-
-function PreferencesStep() {
-  const { questionnaire, updateQuestionnaire } = useApp();
-  const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-  const selected = new Set(questionnaire.preferredDays ?? []);
-  const toggle = (i: number) => {
-    const next = new Set(selected);
-    if (next.has(i)) next.delete(i);
-    else next.add(i);
-    updateQuestionnaire({ preferredDays: Array.from(next) });
-  };
-  return (
-    <>
-      <StepHeader title="Предпочтения по расписанию" />
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-ink-100 p-4">
-          <div className="mb-3 text-[13px] text-ink-500">Удобные дни недели</div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {days.map((d, i) => (
-              <button
-                key={i}
-                onClick={() => toggle(i)}
-                className={cn(
-                  'tappable grid h-11 place-items-center rounded-xl text-[13px] font-semibold',
-                  selected.has(i) ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
-                )}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-ink-100 p-4">
-          <div className="mb-2 text-[13px] text-ink-500">Удобное время</div>
-          <input
-            type="time"
-            value={questionnaire.preferredTime ?? '18:00'}
-            onChange={(e) => updateQuestionnaire({ preferredTime: e.target.value })}
-            className="tabular w-full rounded-xl bg-ink-100 px-3 py-2.5 text-[15px] font-medium text-ink-900 focus:outline-none"
-          />
+      <StepHeader title="Сколько времени на тренировку?" />
+      <div className="rounded-2xl border border-ink-100 p-4">
+        <div className="grid grid-cols-3 gap-1.5">
+          {DURATIONS.map((m) => (
+            <button
+              key={m}
+              onClick={() => updateQuestionnaire({ sessionDurationMin: m })}
+              className={cn(
+                'tappable rounded-xl py-2.5 text-[14px] font-semibold',
+                questionnaire.sessionDurationMin === m
+                  ? 'bg-brand text-white'
+                  : 'bg-ink-100 text-ink-700'
+              )}
+            >
+              {m} мин
+            </button>
+          ))}
         </div>
       </div>
     </>
   );
 }
 
-function SummaryStep() {
-  const { questionnaire } = useApp();
-  const goal = GOALS.find((g) => g.id === questionnaire.goal);
+function FemaleStep() {
+  const { questionnaire, updateQuestionnaire } = useApp();
   return (
     <>
       <StepHeader
-        title="Готово!"
-        hint="Проверь свои ответы и запусти генерацию программы"
+        title="Женская физиология"
+        hint="Поможет точнее настроить интенсивность под цикл и особенности"
       />
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-ink-100 p-4">
+          <div className="mb-2 text-[13px] text-ink-500">Беременность</div>
+          <div className="flex gap-2">
+            {(['no', 'yes'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => updateQuestionnaire({ pregnancy: p })}
+                className={cn(
+                  'tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium',
+                  questionnaire.pregnancy === p ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
+                )}
+              >
+                {p === 'no' ? 'Нет' : 'Да'}
+              </button>
+            ))}
+          </div>
+          {questionnaire.pregnancy === 'yes' && (
+            <div className="mt-3">
+              <FieldInput
+                label="Срок"
+                unit="нед."
+                value={questionnaire.pregnancyWeeks ?? ''}
+                onChange={(v) => updateQuestionnaire({ pregnancyWeeks: v })}
+              />
+            </div>
+          )}
+        </div>
+
+        <SelectCard
+          label="Менструальный цикл"
+          options={MENSTRUAL}
+          value={questionnaire.menstrualPhase}
+          onChange={(v) => updateQuestionnaire({ menstrualPhase: v })}
+        />
+
+        <div className="rounded-2xl border border-ink-100 p-4">
+          <div className="mb-2 text-[13px] text-ink-500">Менопауза</div>
+          <YesNo
+            value={questionnaire.menopause}
+            onChange={(v) => updateQuestionnaire({ menopause: v })}
+          />
+        </div>
+
+        <div className="rounded-2xl border border-ink-100 p-4">
+          <div className="mb-2 text-[13px] text-ink-500">Болезненные менструации</div>
+          <YesNo
+            value={questionnaire.painfulPeriods}
+            onChange={(v) => updateQuestionnaire({ painfulPeriods: v })}
+          />
+        </div>
+
+        <SelectCard
+          label="Тип фигуры (опционально)"
+          options={BODY_SHAPES}
+          value={questionnaire.bodyShape}
+          onChange={(v) => updateQuestionnaire({ bodyShape: v })}
+        />
+      </div>
+    </>
+  );
+}
+
+function LifestyleStep() {
+  const { questionnaire, updateQuestionnaire } = useApp();
+  return (
+    <>
+      <StepHeader title="Образ жизни и восстановление" hint="Опционально, но повышает точность" />
+      <div className="space-y-4">
+        <SelectCard
+          label="Род деятельности"
+          options={OCCUPATIONS}
+          value={questionnaire.occupation}
+          onChange={(v) => updateQuestionnaire({ occupation: v })}
+        />
+        <SelectCard
+          label="Сон"
+          options={SLEEPS}
+          value={questionnaire.sleep}
+          onChange={(v) => updateQuestionnaire({ sleep: v })}
+        />
+        <SelectCard
+          label="Питание"
+          options={NUTRITIONS}
+          value={questionnaire.nutrition}
+          onChange={(v) => updateQuestionnaire({ nutrition: v })}
+        />
+        {questionnaire.nutrition === 'specific' && (
+          <textarea
+            value={questionnaire.nutritionDiet ?? ''}
+            onChange={(e) => updateQuestionnaire({ nutritionDiet: e.target.value })}
+            rows={2}
+            placeholder="Какая диета? Например: кето, веганство, интервальное голодание…"
+            className="w-full resize-none rounded-2xl border border-ink-100 p-4 text-[14px] text-ink-900 placeholder:text-ink-400 focus:border-brand focus:outline-none"
+          />
+        )}
+      </div>
+    </>
+  );
+}
+
+function SummaryStep() {
+  const { questionnaire: q } = useApp();
+  return (
+    <>
+      <StepHeader title="Готово!" hint="Проверь ответы и запусти генерацию программы на 8 недель" />
       <div className="space-y-1.5 rounded-2xl border border-ink-100 bg-ink-50 p-4">
-        <SummaryRow label="Цель" value={goal?.label} />
-        <SummaryRow label="Уровень" value={EXPERIENCES.find((e) => e.id === questionnaire.experience)?.label} />
         <SummaryRow
-          label="Параметры"
+          label="Профиль"
           value={
-            questionnaire.age
-              ? `${questionnaire.age} лет, ${questionnaire.heightCm} см, ${questionnaire.weightKg} кг`
+            q.sex
+              ? `${q.sex === 'female' ? 'Жен' : 'Муж'}, ${q.age} лет, ${q.heightCm} см, ${q.weightKg} кг`
+              : undefined
+          }
+        />
+        <SummaryRow
+          label="Цели"
+          value={
+            q.goals?.length
+              ? q.goals.map((id) => GOALS.find((g) => g.id === id)?.label).filter(Boolean).join(', ')
+              : undefined
+          }
+        />
+        <SummaryRow label="Где" value={PLACES.find((l) => l.id === q.place)?.label} />
+        <SummaryRow
+          label="Оборудование"
+          value={
+            q.equipment?.length
+              ? q.equipment.map((id) => EQUIPMENT.find((e) => e.id === id)?.label).filter(Boolean).join(', ')
               : undefined
           }
         />
         <SummaryRow
           label="Частота"
           value={
-            questionnaire.sessionsPerWeek
-              ? `${questionnaire.sessionsPerWeek} раз в неделю · ${questionnaire.sessionDurationMin} мин`
+            q.sessionsPerWeek
+              ? `${q.sessionsPerWeek} раз в неделю · ${q.sessionDurationMin} мин`
               : undefined
           }
         />
-        <SummaryRow
-          label="Где"
-          value={LOCATIONS.find((l) => l.id === questionnaire.location)?.label}
-        />
-        <SummaryRow
-          label="Оборудование"
-          value={
-            questionnaire.equipment?.length
-              ? questionnaire.equipment
-                  .map((id) => EQUIPMENT.find((e) => e.id === id)?.label)
-                  .filter(Boolean)
-                  .join(', ')
-              : undefined
-          }
-        />
-        {questionnaire.priorityMuscles?.length ? (
-          <SummaryRow label="Фокус" value={questionnaire.priorityMuscles.join(', ')} />
-        ) : null}
-        {questionnaire.injuries ? (
-          <SummaryRow label="Ограничения" value={questionnaire.injuries} />
-        ) : null}
+        <SummaryRow label="Уровень" value={EXPERIENCES.find((e) => e.id === q.experience)?.label} />
+        {q.chronicConditions ? <SummaryRow label="Заболевания" value={q.chronicConditions} /> : null}
+        {q.pastInjuries ? <SummaryRow label="Травмы" value={q.pastInjuries} /> : null}
+        {q.currentComplaints ? <SummaryRow label="Жалобы" value={q.currentComplaints} /> : null}
+        {q.medicalRestrictions ? <SummaryRow label="Противопоказания" value={q.medicalRestrictions} /> : null}
       </div>
     </>
   );
@@ -636,8 +761,8 @@ function SummaryStep() {
 function SummaryRow({ label, value }: { label: string; value?: string }) {
   return (
     <div className="flex items-start justify-between gap-3 py-1.5">
-      <span className="text-[13px] text-ink-500">{label}</span>
-      <span className="max-w-[60%] text-right text-[14px] font-medium text-ink-900">
+      <span className="shrink-0 text-[13px] text-ink-500">{label}</span>
+      <span className="max-w-[62%] text-right text-[14px] font-medium text-ink-900">
         {value ?? '—'}
       </span>
     </div>
@@ -666,12 +791,95 @@ function FieldInput({
           onChange={(e) => {
             const v = parseInt(e.target.value);
             if (!isNaN(v)) onChange(v);
+            else if (e.target.value === '') onChange(0);
           }}
           placeholder="0"
           className="tabular min-w-0 flex-1 bg-transparent text-[20px] font-semibold text-ink-900 placeholder:text-ink-300 focus:outline-none"
         />
         <span className="text-[14px] text-ink-400">{unit}</span>
       </div>
+    </div>
+  );
+}
+
+function HealthField({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 px-1 text-[13px] font-medium text-ink-700">{label}</div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={2}
+        placeholder={placeholder}
+        className="w-full resize-none rounded-2xl border border-ink-100 p-4 text-[14px] text-ink-900 placeholder:text-ink-400 focus:border-brand focus:outline-none"
+      />
+    </div>
+  );
+}
+
+function SelectCard<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { id: T; label: string }[];
+  value?: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-ink-100 p-4">
+      <div className="mb-2.5 text-[13px] text-ink-500">{label}</div>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className={cn(
+              'tappable rounded-full px-3.5 py-2 text-[13px] font-medium transition-colors',
+              value === o.id ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function YesNo({
+  value,
+  onChange,
+}: {
+  value?: 'yes' | 'no';
+  onChange: (v: 'yes' | 'no') => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      {(['no', 'yes'] as const).map((v) => (
+        <button
+          key={v}
+          onClick={() => onChange(v)}
+          className={cn(
+            'tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium',
+            value === v ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
+          )}
+        >
+          {v === 'no' ? 'Нет' : 'Да'}
+        </button>
+      ))}
     </div>
   );
 }
@@ -685,6 +893,29 @@ function RadioDot({ active }: { active: boolean }) {
       )}
     >
       {active && <div className="h-2.5 w-2.5 rounded-full bg-brand" />}
+    </div>
+  );
+}
+
+function CheckBox({ active }: { active: boolean }) {
+  return (
+    <div
+      className={cn(
+        'grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 transition-colors',
+        active ? 'border-brand bg-brand text-white' : 'border-ink-200'
+      )}
+    >
+      {active && (
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+          <path
+            d="M3 7l3 3 5-6"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { ru } from 'date-fns/locale';
 import { animate, motion, useMotionValue } from 'framer-motion';
 import { cn, MARKER_HEX } from '@/lib/utils';
 import { useApp } from '@/store/app';
+import { useToday } from '@/hooks/useToday';
 
 const CELL_H = 52;
 const WEEKDAYS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
@@ -38,7 +39,7 @@ function getWeeks3(anchor: Date): [Date[], Date[], Date[]] {
 export function Calendar() {
   const { selectedDate, setSelectedDate, workouts } = useApp();
   const selected = parseISO(selectedDate);
-  const today = useMemo(() => new Date(), []);
+  const today = useToday();
   const [expanded, setExpanded] = useState(false);
 
   // All workouts markers — no user filter (store already holds current user's data)
