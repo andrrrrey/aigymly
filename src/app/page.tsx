@@ -95,6 +95,24 @@ export default function HomePage() {
     }
   }, [groupedWorkouts, filterDate, todayStr, setSelectedDate]);
 
+  // When the single-date filter is cleared, scroll the full agenda back to
+  // today or the nearest future date with a workout.
+  const prevFilter = useRef<string | null>(null);
+  useEffect(() => {
+    const wasFiltered = prevFilter.current !== null;
+    prevFilter.current = filterDate;
+    if (!wasFiltered || filterDate !== null || groupedWorkouts.length === 0) return;
+    const dates = groupedWorkouts.map(([d]) => d).sort();
+    const target = dates.find((d) => d >= todayStr) ?? dates[dates.length - 1];
+    setSelectedDate(target);
+    const el = sectionRefs.current.get(target);
+    if (el) {
+      scrollingToDate.current = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => { scrollingToDate.current = false; }, 500);
+    }
+  }, [filterDate, groupedWorkouts, todayStr, setSelectedDate]);
+
   // Tapping a calendar day toggles the single-date filter for the list.
   const handleDayTap = (date: string) => {
     setFilterDate((cur) => (cur === date ? null : date));
