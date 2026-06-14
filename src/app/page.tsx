@@ -23,6 +23,8 @@ export default function HomePage() {
   const [filterDate, setFilterDate] = useState<string | null>(null);
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollingToDate = useRef(false);
+  const didInitialScroll = useRef(false);
 
   const today = useToday();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -51,12 +53,12 @@ export default function HomePage() {
     return Array.from(groups.entries());
   }, [workouts]);
 
-  // What the list renders: a single tapped date, or the upcoming agenda so the
-  // top item is always today or the nearest future date with a workout.
+  // What the list renders: a single tapped date, or the full agenda (past +
+  // future) so the user can scroll up into history and down into the future.
   const displayedGroups = useMemo(() => {
     if (filterDate) return groupedWorkouts.filter(([d]) => d === filterDate);
-    return groupedWorkouts.filter(([d]) => d >= todayStr);
-  }, [groupedWorkouts, filterDate, todayStr]);
+    return groupedWorkouts;
+  }, [groupedWorkouts, filterDate]);
 
   // IntersectionObserver: when a date section enters the viewport, update
   // selectedDate so the calendar week strip follows the scroll position
@@ -67,6 +69,7 @@ export default function HomePage() {
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (scrollingToDate.current) return;
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -82,6 +85,21 @@ export default function HomePage() {
     return () => observer.disconnect();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayedGroups, filterDate, setSelectedDate]);
+
+  // Initial scroll: anchor the full agenda at today or the nearest future date,
+  // leaving past dates reachable by scrolling up. Runs once the list loads.
+  useEffect(() => {
+    if (didInitialScroll.current || filterDate || groupedWorkouts.length === 0) return;
+    didInitialScroll.current = true;
+    const dates = groupedWorkouts.map(([d]) => d).sort();
+    const target = dates.find((d) => d >= todayStr) ?? dates[dates.length - 1];
+    const el = target ? sectionRefs.current.get(target) : null;
+    if (el) {
+      scrollingToDate.current = true;
+      el.scrollIntoView({ behavior: 'instant', block: 'start' });
+      setTimeout(() => { scrollingToDate.current = false; }, 300);
+    }
+  }, [groupedWorkouts, filterDate, todayStr]);
 
   // Tapping a calendar day toggles the single-date filter for the list.
   const handleDayTap = (date: string) => {
@@ -131,7 +149,7 @@ export default function HomePage() {
           {displayedGroups.length === 0 ? (
             <EmptyState
               onCreate={handleCreate}
-              title={filterDate ? 'На этот день пусто' : 'Нет предстоящих тренировок'}
+              title={filterDate ? 'На этот день пусто' : 'Тренировок пока нет'}
             />
           ) : (
             displayedGroups.map(([date, list]) => (

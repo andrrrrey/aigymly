@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronDown, Trash2, Plus, X, Clock, GripVertical } from 'lucide-react';
-import { motion, AnimatePresence, useMotionValue, type PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import type { Exercise } from '@/types';
@@ -17,38 +17,57 @@ interface Props {
   isDragging?: boolean;
 }
 
+const SWIPE_OPEN_X = -88;
+
 export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHandleAttributes, isDragging }: Props) {
   const [open, setOpen] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const { addSet, updateSet, removeSet, removeExercise } = useApp();
   const x = useMotionValue(0);
 
-  const handleDragEnd = (_e: unknown, info: PanInfo) => {
-    // Swipe far enough to the left → delete. Otherwise framer springs back to 0.
-    if (info.offset.x < -80) {
-      removeExercise(workoutId, exercise.id);
+  const close = () => {
+    animate(x, 0, { type: 'spring', stiffness: 500, damping: 40 });
+    setRevealed(false);
+  };
+
+  const handleDragEnd = () => {
+    // Latch open to expose the delete button if swiped past halfway; else close.
+    if (x.get() < SWIPE_OPEN_X / 2) {
+      animate(x, SWIPE_OPEN_X, { type: 'spring', stiffness: 500, damping: 40 });
+      setRevealed(true);
+    } else {
+      close();
     }
+  };
+
+  const handleHeaderClick = () => {
+    if (revealed) close();
+    else setOpen((v) => !v);
   };
 
   return (
     <div className="relative">
-      {/* Red layer revealed while swiping left */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-end rounded-2xl bg-marker-red pr-6">
-        <div className="flex items-center gap-1.5 text-white">
-          <Trash2 size={18} />
-          <span className="text-[13px] font-semibold">Удалить</span>
-        </div>
-      </div>
+      {/* Red delete button revealed when the card is slid open */}
+      <button
+        type="button"
+        onClick={() => removeExercise(workoutId, exercise.id)}
+        className="absolute inset-y-0 right-0 flex w-[88px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-marker-red text-white"
+        aria-label="Удалить упражнение"
+      >
+        <Trash2 size={18} />
+        <span className="text-[11px] font-semibold">Удалить</span>
+      </button>
       <motion.div
         style={{ x }}
         drag="x"
         dragDirectionLock
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={{ left: 0.7, right: 0 }}
+        dragConstraints={{ left: SWIPE_OPEN_X, right: 0 }}
+        dragElastic={{ left: 0.08, right: 0 }}
         onDragEnd={handleDragEnd}
         className={cn('relative overflow-hidden rounded-2xl bg-white shadow-card', isDragging && 'opacity-50')}
       >
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleHeaderClick}
         className="tappable flex w-full items-center gap-3 px-3 py-3 text-left"
       >
         <button

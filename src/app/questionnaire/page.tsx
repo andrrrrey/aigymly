@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -780,6 +780,17 @@ function FieldInput({
   value: number | '';
   onChange: (v: number) => void;
 }) {
+  // Local string so a 0/empty value renders as an empty field with a "0"
+  // placeholder (instead of a literal, hard-to-clear "0" that yields "025").
+  const num = value === '' ? 0 : value;
+  const [text, setText] = useState(() => (num === 0 ? '' : String(num)));
+
+  useEffect(() => {
+    const parsed = text === '' ? 0 : parseInt(text, 10);
+    if (parsed !== num) setText(num === 0 ? '' : String(num));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   return (
     <div className="rounded-2xl border border-ink-100 p-4">
       <div className="mb-2 text-[13px] text-ink-500">{label}</div>
@@ -787,11 +798,16 @@ function FieldInput({
         <input
           type="number"
           inputMode="numeric"
-          value={value}
+          value={text}
           onChange={(e) => {
-            const v = parseInt(e.target.value);
+            const raw = e.target.value;
+            setText(raw);
+            if (raw === '') {
+              onChange(0);
+              return;
+            }
+            const v = parseInt(raw, 10);
             if (!isNaN(v)) onChange(v);
-            else if (e.target.value === '') onChange(0);
           }}
           placeholder="0"
           className="tabular min-w-0 flex-1 bg-transparent text-[20px] font-semibold text-ink-900 placeholder:text-ink-300 focus:outline-none"
