@@ -36,7 +36,7 @@ function getWeeks3(anchor: Date): [Date[], Date[], Date[]] {
   ];
 }
 
-export function Calendar() {
+export function Calendar({ onDayTap }: { onDayTap?: (date: string) => void } = {}) {
   const { selectedDate, setSelectedDate, workouts } = useApp();
   const selected = parseISO(selectedDate);
   const today = useToday();
@@ -190,7 +190,7 @@ export function Calendar() {
                       isToday={isSameDay(day, today)}
                       isCurrentMonth={isSameMonth(day, selected)}
                       markers={markersByDate.get(dateKey) ?? []}
-                      onSelect={() => { setSelectedDate(dateKey); setExpanded(false); }}
+                      onSelect={() => { setSelectedDate(dateKey); setExpanded(false); onDayTap?.(dateKey); }}
                     />
                   );
                 })}
@@ -227,7 +227,7 @@ export function Calendar() {
                         isToday={isSameDay(day, today)}
                         isCurrentMonth
                         markers={markersByDate.get(dateKey) ?? []}
-                        onSelect={() => setSelectedDate(dateKey)}
+                        onSelect={() => { setSelectedDate(dateKey); onDayTap?.(dateKey); }}
                       />
                     );
                   })}

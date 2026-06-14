@@ -29,6 +29,7 @@ export async function POST(req: Request) {
           blocks: program.blocks,
           analysis: program.analysis,
           weeksTotal: program.weeksTotal,
+          answers,
         }),
       },
     })
