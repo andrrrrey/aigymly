@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, Trash2, Plus, X, Clock, GripVertical } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { cn, pluralRu } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import type { Exercise } from '@/types';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
@@ -23,6 +24,7 @@ export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHand
   const [open, setOpen] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const { addSet, updateSet, removeSet, removeExercise } = useApp();
+  const router = useRouter();
   const x = useMotionValue(0);
 
   const close = () => {
@@ -83,12 +85,21 @@ export function ExerciseRow({ workoutId, exercise, dragHandleListeners, dragHand
           <ExerciseIcon kind={exercise.kind} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-medium tracking-tight text-ink-900">
+          <span
+            role="link"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (revealed) { close(); return; }
+              router.push(`/exercise/${encodeURIComponent(exercise.name)}`);
+            }}
+            className="block truncate text-[15px] font-medium tracking-tight text-ink-900 underline decoration-transparent underline-offset-2 hover:decoration-ink-300"
+          >
             {exercise.name}
-          </div>
+          </span>
           <div className="text-[12px] text-ink-400">
             {exercise.kind === 'strength'
-              ? `${exercise.sets?.length ?? 0} подходов`
+              ? `${exercise.sets?.length ?? 0} ${pluralRu(exercise.sets?.length ?? 0, ['подход', 'подхода', 'подходов'])}`
               : `${Math.round((exercise.durationSec ?? 0) / 60)} мин`}
           </div>
         </div>

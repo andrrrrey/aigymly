@@ -13,6 +13,16 @@ export function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+// Russian pluralization: pluralRu(1, ['подход', 'подхода', 'подходов']).
+export function pluralRu(n: number, forms: [string, string, string]): string {
+  const abs = Math.abs(n);
+  const n10 = abs % 10;
+  const n100 = abs % 100;
+  if (n10 === 1 && n100 !== 11) return forms[0];
+  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return forms[1];
+  return forms[2];
+}
+
 // App weekday convention: 0=Mon ... 6=Sun (JS getDay is 0=Sun ... 6=Sat).
 export function appWeekday(date: Date): number {
   return (date.getDay() + 6) % 7;
