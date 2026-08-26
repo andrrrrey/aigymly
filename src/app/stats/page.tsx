@@ -1,19 +1,60 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BottomNav } from '@/components/BottomNav';
 import { useApp } from '@/store/app';
+import { useToday } from '@/hooks/useToday';
 import { computeExerciseStats } from '@/lib/exerciseStats';
+import {
+  computeMonthStats,
+  computeTrainingMarkers,
+  currentMonthKey,
+  findLastTrainingWorkout,
+  listMonthKeysWithData,
+  shiftMonthKey,
+} from '@/lib/statsMonth';
 import { pluralRu } from '@/lib/utils';
+import { MonthSwitcher } from '@/components/stats/MonthSwitcher';
+import { MonthCalendarSheet } from '@/components/stats/MonthCalendarSheet';
+import { DisciplineBlock } from '@/components/stats/DisciplineBlock';
+import { TonnageBlock } from '@/components/stats/TonnageBlock';
+import { StrengthBlock } from '@/components/stats/StrengthBlock';
+import { MuscleBalanceBlock } from '@/components/stats/MuscleBalanceBlock';
+import { LastWorkoutBlock } from '@/components/stats/LastWorkoutBlock';
 
 export default function StatsPage() {
   const { workouts } = useApp();
-  const router = useRouter();
+  const today = useToday();
+  const thisMonth = currentMonthKey(today);
+
+  const [monthKey, setMonthKey] = useState(thisMonth);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const stats = useMemo(
+    () => computeMonthStats(workouts, monthKey),
+    [workouts, monthKey]
+  );
+  const markersByDate = useMemo(() => computeTrainingMarkers(workouts), [workouts]);
+  const monthsWithData = useMemo(() => listMonthKeysWithData(workouts), [workouts]);
+  const lastWorkout = useMemo(
+    () => findLastTrainingWorkout(workouts, monthKey),
+    [workouts, monthKey]
+  );
   const exerciseStats = useMemo(() => computeExerciseStats(workouts), [workouts]);
+
+  // Never arrow past the first month that holds data, or into the future —
+  // planned workouts are deliberately excluded, so future months are always empty.
+  const earliestMonth = monthsWithData[0] ?? thisMonth;
+  const canPrev = monthKey > earliestMonth;
+  const canNext = monthKey < thisMonth;
+
+  const goPrev = () => canPrev && setMonthKey((m) => shiftMonthKey(m, -1));
+  const goNext = () => canNext && setMonthKey((m) => shiftMonthKey(m, 1));
+
   return (
     <>
       <header
@@ -27,29 +68,30 @@ export default function StatsPage() {
         </div>
       </header>
 
-      <main className="no-scrollbar flex-1 overflow-y-auto bg-white px-5 pb-24">
-        <div className="grid grid-cols-2 gap-2">
-          <StatTile label="Всего тренировок" value={workouts.length.toString()} />
-          <StatTile
-            label="Подходов сделано"
-            value={workouts
-              .flatMap((w) => w.exercises.flatMap((e) => e.sets ?? []))
-              .filter((s) => s.done)
-              .length.toString()}
+      <main className="no-scrollbar scroll-smooth-momentum flex-1 overflow-y-auto bg-white px-5 pb-24">
+        {/* The month applies to the whole feed, so it has to stay reachable
+            while scrolling through four blocks. */}
+        <div className="sticky top-0 z-10 -mx-5 border-b border-ink-100 bg-white/95 px-5 py-2 backdrop-blur-sm">
+          <MonthSwitcher
+            monthKey={monthKey}
+            canPrev={canPrev}
+            canNext={canNext}
+            onPrev={goPrev}
+            onNext={goNext}
+            onOpenCalendar={() => setCalendarOpen(true)}
           />
-          <StatTile
-            label="Поднято, кг"
-            value={Math.round(
-              workouts
-                .flatMap((w) => w.exercises.flatMap((e) => e.sets ?? []))
-                .filter((s) => s.done)
-                .reduce((sum, s) => sum + s.reps * s.weightKg, 0)
-            ).toString()}
-          />
-          <StatTile label="Стрик" value="3 дня" />
         </div>
 
-        <div className="mt-6">
+        <div className="pt-4">
+          <DisciplineBlock stats={stats} onOpenCalendar={() => setCalendarOpen(true)} />
+        </div>
+
+        <TonnageBlock stats={stats} />
+        <StrengthBlock stats={stats} />
+        <MuscleBalanceBlock stats={stats} />
+        <LastWorkoutBlock workout={lastWorkout} />
+
+        <section className="mt-7">
           <h2 className="mb-2 text-[17px] font-semibold tracking-tight text-ink-900">
             Упражнения
           </h2>
@@ -61,9 +103,9 @@ export default function StatsPage() {
           ) : (
             <div className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-100">
               {exerciseStats.map((ex) => (
-                <button
+                <Link
                   key={ex.name}
-                  onClick={() => router.push(`/exercise/${encodeURIComponent(ex.name)}`)}
+                  href={`/exercise/${encodeURIComponent(ex.name)}`}
                   className="tappable flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink-50"
                 >
                   <div className="min-w-0 flex-1">
@@ -79,11 +121,11 @@ export default function StatsPage() {
                     </div>
                   </div>
                   <ChevronRight size={18} className="shrink-0 text-ink-300" />
-                </button>
+                </Link>
               ))}
             </div>
           )}
-        </div>
+        </section>
 
         <div className="mt-5 rounded-2xl border border-ink-100 bg-ink-50 p-4">
           <h3 className="text-[15px] font-semibold text-ink-900">Сводка от AI</h3>
@@ -92,16 +134,20 @@ export default function StatsPage() {
           </p>
         </div>
       </main>
-      <BottomNav />
-    </>
-  );
-}
 
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-ink-50 p-4">
-      <div className="tabular text-[24px] font-semibold tracking-tight text-ink-900">{value}</div>
-      <div className="mt-0.5 text-[12px] text-ink-500">{label}</div>
-    </div>
+      <BottomNav />
+
+      <MonthCalendarSheet
+        open={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        monthKey={monthKey}
+        workoutCount={stats.workoutCount}
+        markersByDate={markersByDate}
+        canPrev={canPrev}
+        canNext={canNext}
+        onPrev={goPrev}
+        onNext={goNext}
+      />
+    </>
   );
 }

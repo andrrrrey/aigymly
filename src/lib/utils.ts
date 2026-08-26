@@ -72,3 +72,16 @@ export const EMOJI_BG: Record<string, string> = {
   purple: 'bg-[#E5DBFB]',
   gray: 'bg-[#EFF1F5]',
 };
+
+// 24500 → "24 500". Uses a narrow no-break space (U+202F) so the number never
+// wraps mid-digit-group.
+export function formatNumRu(n: number): string {
+  return Math.round(n)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+// 2.3 → "2,3" (Russian decimal comma).
+export function formatDecimalRu(n: number, digits = 1): string {
+  return n.toFixed(digits).replace('.', ',');
+}
