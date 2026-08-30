@@ -45,6 +45,17 @@ OPENAI_API_KEY=""
 
 После изменения схемы Prisma: `npx prisma migrate dev`.
 
+### Деплой
+
+На проде после `git pull` нужно применить миграции к боевой БД **до** пересборки — иначе Prisma-клиент будет знать про новые колонки, которых ещё нет в базе (ошибки вида `SQLITE_ERROR: no such column`):
+
+```bash
+npm run deploy       # prisma migrate deploy && prisma generate && next build
+pm2 restart aigymly
+```
+
+Или по отдельности: `npm run migrate:deploy` применяет только миграции. Проверить состояние — `npx prisma migrate status`.
+
 ## Админ-панель (`/admin`)
 
 - Вход по логину/паролю администратора (`/admin/login`). Первый админ создаётся автоматически из `ADMIN_USERNAME`/`ADMIN_PASSWORD` при первом входе и сохраняется в БД (таблица `Admin`).
