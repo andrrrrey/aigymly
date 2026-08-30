@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays,
+  addMonths,
   addWeeks,
   endOfMonth,
   endOfWeek,
@@ -12,9 +13,11 @@ import {
   parseISO,
   startOfMonth,
   startOfWeek,
+  subMonths,
   subWeeks,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { animate, motion, useMotionValue } from 'framer-motion';
 import { useApp } from '@/store/app';
 import { useToday } from '@/hooks/useToday';
@@ -47,6 +50,17 @@ export function Calendar({
   const highlight = highlightDate ? parseISO(highlightDate) : null;
   const today = useToday();
   const [expanded, setExpanded] = useState(false);
+  // Which month the expanded grid shows. Independent of `selected` so browsing
+  // months here doesn't move the week strip or the agenda until a day is tapped.
+  const [monthCursor, setMonthCursor] = useState<Date>(() => startOfMonth(selected));
+
+  const toggleExpanded = () => {
+    setExpanded((v) => {
+      const next = !v;
+      if (next) setMonthCursor(startOfMonth(selected));
+      return next;
+    });
+  };
 
   // All workouts markers — no user filter (store already holds current user's data)
   const markersByDate = useMemo(() => {
@@ -60,10 +74,10 @@ export function Calendar({
     return m;
   }, [workouts]);
 
-  // Full month grid (for expanded view)
+  // Full month grid (for expanded view), driven by the browsable month cursor.
   const monthWeeks = useMemo(() => {
-    const start = startOfWeek(startOfMonth(selected), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(selected), { weekStartsOn: 1 });
+    const start = startOfWeek(startOfMonth(monthCursor), { weekStartsOn: 1 });
+    const end = endOfWeek(endOfMonth(monthCursor), { weekStartsOn: 1 });
     const weeks: Date[][] = [];
     let cursor = start;
     while (cursor <= end) {
@@ -71,7 +85,7 @@ export function Calendar({
       cursor = addDays(cursor, 7);
     }
     return weeks;
-  }, [selected]);
+  }, [monthCursor]);
 
   // ── 3-week carousel ────────────────────────────────────────────────────────
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -152,18 +166,41 @@ export function Calendar({
 
   return (
     <div className="px-5 pt-2 pb-2">
-      {/* Month label + expand toggle */}
+      {/* Month label + (when expanded) month nav + expand toggle */}
       <div className="flex items-center justify-between pb-2">
         <h2 className="font-display text-[28px] font-semibold tracking-tight text-ink-900">
-          {format(selected, 'LLLL yyyy', { locale: ru }).replace(/^./, (c) => c.toUpperCase())}
+          {format(expanded ? monthCursor : selected, 'LLLL yyyy', { locale: ru }).replace(
+            /^./,
+            (c) => c.toUpperCase()
+          )}
         </h2>
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="tappable grid h-9 w-9 place-items-center rounded-xl text-ink-500"
-          aria-label={expanded ? 'Свернуть' : 'Показать месяц'}
-        >
-          <CalendarToggleIcon expanded={expanded} />
-        </button>
+        <div className="flex items-center gap-1">
+          {expanded && (
+            <>
+              <button
+                onClick={() => setMonthCursor((m) => subMonths(m, 1))}
+                className="tappable grid h-9 w-9 place-items-center rounded-xl text-ink-500 hover:bg-ink-50"
+                aria-label="Предыдущий месяц"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <button
+                onClick={() => setMonthCursor((m) => addMonths(m, 1))}
+                className="tappable grid h-9 w-9 place-items-center rounded-xl text-ink-500 hover:bg-ink-50"
+                aria-label="Следующий месяц"
+              >
+                <ChevronRight size={22} />
+              </button>
+            </>
+          )}
+          <button
+            onClick={toggleExpanded}
+            className="tappable grid h-9 w-9 place-items-center rounded-xl text-ink-500"
+            aria-label={expanded ? 'Свернуть' : 'Показать месяц'}
+          >
+            <CalendarToggleIcon expanded={expanded} />
+          </button>
+        </div>
       </div>
 
       {/* Weekday labels */}
@@ -194,7 +231,7 @@ export function Calendar({
                       day={day}
                       isSelected={!!highlight && isSameDay(day, highlight)}
                       isToday={isSameDay(day, today)}
-                      isCurrentMonth={isSameMonth(day, selected)}
+                      isCurrentMonth={isSameMonth(day, monthCursor)}
                       markers={markersByDate.get(dateKey) ?? []}
                       onSelect={() => { setSelectedDate(dateKey); setExpanded(false); onDayTap?.(dateKey); }}
                     />

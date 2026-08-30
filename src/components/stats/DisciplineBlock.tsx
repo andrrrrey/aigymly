@@ -1,17 +1,10 @@
 'use client';
 
-import { CalendarDays } from 'lucide-react';
 import { formatDecimalRu, pluralRu } from '@/lib/utils';
 import type { MonthStats } from '@/lib/statsMonth';
 
 // Block 1 — «Как часто я тренируюсь?»
-export function DisciplineBlock({
-  stats,
-  onOpenCalendar,
-}: {
-  stats: MonthStats;
-  onOpenCalendar: () => void;
-}) {
+export function DisciplineBlock({ stats }: { stats: MonthStats }) {
   return (
     <section>
       <div className="grid grid-cols-2 gap-2">
@@ -21,14 +14,6 @@ export function DisciplineBlock({
         />
         <Tile value={formatDecimalRu(stats.perWeek)} label="в неделю" />
       </div>
-      <button
-        type="button"
-        onClick={onOpenCalendar}
-        className="tappable mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-ink-100 py-3 text-[14px] font-medium text-ink-500"
-      >
-        <CalendarDays size={17} />
-        Показать календарь месяца
-      </button>
     </section>
   );
 }

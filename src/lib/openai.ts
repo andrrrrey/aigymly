@@ -177,6 +177,12 @@ function buildUserPrompt(a: QuestionnaireAnswers): string {
       }`
     )
 
+  // Блок 7. Дополнительные пожелания пользователя — обязательно учитывать.
+  if (a.notes?.trim())
+    lines.push(
+      `Дополнительные пожелания пользователя (обязательно учти при составлении программы): ${a.notes.trim()}`
+    )
+
   return lines.join('\n')
 }
 
@@ -426,6 +432,117 @@ async function callOpenAI(
     throw new OpenAIError('OPENAI_BAD_OUTPUT')
   }
   return content
+}
+
+// ── Stats summary (the «Сводка от AI» block on /stats) ─────────────────────
+
+export interface StatsSummaryInput {
+  monthTitle: string
+  workoutCount: number
+  perWeek: number
+  totalTonnageKg: number
+  avgTonnageKg: number
+  totalSets: number
+  strength: {
+    name: string
+    currentOneRm: number
+    deltaKg: number | null
+    deltaPct: number | null
+  }[]
+  balance: { group: string; percent: number }[]
+}
+
+const STATS_SUMMARY_SYSTEM = `Ты — опытный, доброжелательный персональный тренер. На основе месячной статистики тренировок пользователя дай короткую, живую и мотивирующую сводку на русском языке.
+
+Требования:
+- 3–5 коротких абзацев или пунктов, без markdown-заголовков.
+- Отметь главное: регулярность, динамику нагрузки, прогресс силы (по расчётному максимуму), баланс мышечных групп.
+- Дай 1–2 конкретные рекомендации на следующий месяц.
+- Тон — поддерживающий, по-человечески, без канцелярита и без выдуманных цифр. Используй только предоставленные данные.
+- Не используй обращения вида «Уважаемый пользователь». Обращайся на «ты».`
+
+function buildStatsSummaryPrompt(s: StatsSummaryInput): string {
+  const lines: string[] = []
+  lines.push(`Месяц: ${s.monthTitle}`)
+  lines.push(`Тренировок за месяц: ${s.workoutCount}`)
+  lines.push(`В среднем в неделю: ${s.perWeek.toFixed(1)}`)
+  lines.push(`Всего выполненных подходов: ${s.totalSets}`)
+  lines.push(`Общая нагрузка за месяц: ${Math.round(s.totalTonnageKg)} кг`)
+  lines.push(`Средняя нагрузка за тренировку: ${Math.round(s.avgTonnageKg)} кг`)
+
+  if (s.strength.length) {
+    lines.push('')
+    lines.push('Прогресс силы (расчётный максимум 1ПМ):')
+    for (const ex of s.strength.slice(0, 8)) {
+      const delta =
+        ex.deltaKg === null
+          ? 'новое упражнение в этом месяце'
+          : `${ex.deltaKg >= 0 ? '+' : ''}${ex.deltaKg.toFixed(1)} кг${
+              ex.deltaPct !== null ? ` (${ex.deltaPct >= 0 ? '+' : ''}${ex.deltaPct.toFixed(1)}%)` : ''
+            }`
+      lines.push(`- ${ex.name}: 1ПМ ${Math.round(ex.currentOneRm)} кг, изменение ${delta}`)
+    }
+  }
+
+  if (s.balance.length) {
+    lines.push('')
+    lines.push('Баланс мышечных групп (доля подходов):')
+    for (const g of s.balance) {
+      lines.push(`- ${g.group}: ${Math.round(g.percent)}%`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
+async function callOpenAIText(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<string> {
+  let res: Response
+  try {
+    res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+      }),
+    })
+  } catch (err) {
+    throw new OpenAIError('OPENAI_REQUEST_FAILED', String(err))
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new OpenAIError(
+      'OPENAI_REQUEST_FAILED',
+      `OpenAI ${res.status}: ${text.slice(0, 500)}`
+    )
+  }
+
+  const json = await res.json().catch(() => null)
+  const content = json?.choices?.[0]?.message?.content
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new OpenAIError('OPENAI_BAD_OUTPUT')
+  }
+  return content.trim()
+}
+
+export async function generateStatsSummary(input: StatsSummaryInput): Promise<string> {
+  const apiKey = await getOpenAIKey()
+  if (!apiKey) throw new OpenAIError('OPENAI_KEY_MISSING')
+  const model = await getOpenAIModel()
+  return callOpenAIText(apiKey, model, STATS_SUMMARY_SYSTEM, buildStatsSummaryPrompt(input))
 }
 
 export async function generateProgram(
