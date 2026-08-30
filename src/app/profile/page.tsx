@@ -1,11 +1,39 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BottomNav } from '@/components/BottomNav';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { useAuth } from '@/store/auth';
-import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle, Mail, Loader2, Send } from 'lucide-react';
+import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle, Loader2, Send, Camera } from 'lucide-react';
+
+// Downscale a picked image entirely on the client into a compact JPEG data URL,
+// so it can be stored inline on the user record without a file backend.
+async function fileToAvatarDataUrl(file: File, size = 256): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('IMAGE_DECODE_FAILED'));
+    el.src = dataUrl;
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('CANVAS_UNAVAILABLE');
+  // Center-crop to a square, then draw into the fixed-size canvas.
+  const side = Math.min(img.width, img.height);
+  const sx = (img.width - side) / 2;
+  const sy = (img.height - side) / 2;
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+  return canvas.toDataURL('image/jpeg', 0.82);
+}
 
 // Separate component to use useSearchParams inside Suspense
 function BannerFromURL({ onBanner }: { onBanner: (b: 'verified' | 'error' | null) => void }) {
@@ -23,15 +51,38 @@ function BannerFromURL({ onBanner }: { onBanner: (b: 'verified' | 'error' | null
 }
 
 export default function ProfilePage() {
-  const { user, loading, logout, hydrate, markEmailVerified, updateSex } = useAuth();
+  const { user, loading, logout, hydrate, markEmailVerified, updateSex, updateUnits, updateAvatar } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [banner, setBanner] = useState<'verified' | 'error' | null>(null);
   const [resending, setResending] = useState(false);
   const [pin, setPin] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
   const [pinError, setPinError] = useState('');
-
   const [resendDone, setResendDone] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+
+  async function handleAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file later
+    if (!file) return;
+    setAvatarError('');
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Выберите изображение');
+      return;
+    }
+    setAvatarBusy(true);
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      await updateAvatar(dataUrl);
+    } catch {
+      setAvatarError('Не удалось загрузить фото');
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
 
   async function resendVerification() {
     setResending(true);
@@ -112,8 +163,38 @@ export default function ProfilePage() {
 
         {/* Avatar + info */}
         <div className="flex items-center gap-4 py-4">
-          <div className="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-[22px] font-semibold text-white">
-            {avatarLetter}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => user && fileInputRef.current?.click()}
+              disabled={!user || avatarBusy}
+              aria-label="Загрузить фото профиля"
+              className="tappable grid h-16 w-16 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-brand to-brand-dark text-[22px] font-semibold text-white disabled:opacity-100"
+            >
+              {user?.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.avatarUrl} alt="Фото профиля" className="h-full w-full object-cover" />
+              ) : (
+                avatarLetter
+              )}
+              {avatarBusy && (
+                <span className="absolute inset-0 grid place-items-center rounded-full bg-ink-900/40">
+                  <Loader2 size={20} className="animate-spin text-white" />
+                </span>
+              )}
+            </button>
+            {user && !avatarBusy && (
+              <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-brand text-white">
+                <Camera size={12} />
+              </span>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarPick}
+              className="hidden"
+            />
           </div>
           <div className="min-w-0">
             {loading ? (
@@ -135,6 +216,9 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+        {avatarError && (
+          <p className="-mt-2 mb-2 text-[12px] text-marker-red">{avatarError}</p>
+        )}
 
         {/* Auth button */}
         {!loading && (
@@ -204,30 +288,51 @@ export default function ProfilePage() {
         )}
 
         {user && (
-          <div className="mt-6 rounded-2xl border border-ink-100 p-4">
-            <div className="mb-2 text-[13px] font-medium text-ink-500">Пол</div>
-            <div className="flex gap-2">
-              {(['male', 'female'] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => updateSex(s)}
-                  className={`tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium transition-colors ${
-                    user.sex === s ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
-                  }`}
-                >
-                  {s === 'male' ? 'Мужчина' : 'Женщина'}
-                </button>
-              ))}
+          <div className="mt-6 space-y-3">
+            <div className="rounded-2xl border border-ink-100 p-4">
+              <div className="mb-2 text-[13px] font-medium text-ink-500">Пол</div>
+              <div className="flex gap-2">
+                {(['male', 'female'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => updateSex(s)}
+                    className={`tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium transition-colors ${
+                      user.sex === s ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
+                    }`}
+                  >
+                    {s === 'male' ? 'Мужчина' : 'Женщина'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-ink-100 p-4">
+              <div className="mb-2 text-[13px] font-medium text-ink-500">Единицы измерения</div>
+              <div className="flex gap-2">
+                {([
+                  { id: 'metric', label: 'Килограммы (кг)' },
+                  { id: 'imperial', label: 'Фунты (lb)' },
+                ] as const).map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => updateUnits(u.id)}
+                    className={`tappable flex-1 rounded-xl py-2.5 text-[14px] font-medium transition-colors ${
+                      (user.units ?? 'metric') === u.id ? 'bg-brand text-white' : 'bg-ink-100 text-ink-700'
+                    }`}
+                  >
+                    {u.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
         <div className="mt-6 space-y-1">
           <ProfileRow label="Личные данные" />
-          <ProfileRow label="Опросник и программа" />
           <ProfileRow label="Уведомления" />
-          <ProfileRow label="Единицы измерения" />
           <ProfileRow label="Помощь и поддержка" />
         </div>
       </main>

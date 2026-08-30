@@ -25,6 +25,7 @@ import { TonnageBlock } from '@/components/stats/TonnageBlock';
 import { StrengthBlock } from '@/components/stats/StrengthBlock';
 import { MuscleBalanceBlock } from '@/components/stats/MuscleBalanceBlock';
 import { LastWorkoutBlock } from '@/components/stats/LastWorkoutBlock';
+import { AiSummaryBlock } from '@/components/stats/AiSummaryBlock';
 
 export default function StatsPage() {
   const { workouts } = useApp();
@@ -83,10 +84,11 @@ export default function StatsPage() {
         </div>
 
         <div className="pt-4">
-          <DisciplineBlock stats={stats} onOpenCalendar={() => setCalendarOpen(true)} />
+          <DisciplineBlock stats={stats} />
         </div>
 
         <TonnageBlock stats={stats} />
+        <AiSummaryBlock stats={stats} />
         <StrengthBlock stats={stats} />
         <MuscleBalanceBlock stats={stats} />
         <LastWorkoutBlock workout={lastWorkout} />
@@ -126,13 +128,6 @@ export default function StatsPage() {
             </div>
           )}
         </section>
-
-        <div className="mt-5 rounded-2xl border border-ink-100 bg-ink-50 p-4">
-          <h3 className="text-[15px] font-semibold text-ink-900">Сводка от AI</h3>
-          <p className="mt-1 text-[13px] leading-snug text-ink-500">
-            Здесь AI будет анализировать прогресс и давать рекомендации на основе истории твоих тренировок.
-          </p>
-        </div>
       </main>
 
       <BottomNav />

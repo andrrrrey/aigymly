@@ -32,6 +32,7 @@ type Step =
   | 'duration'
   | 'female'
   | 'lifestyle'
+  | 'extra'
   | 'summary';
 
 function buildSteps(sex?: Sex): Step[] {
@@ -46,7 +47,7 @@ function buildSteps(sex?: Sex): Step[] {
     'duration',
   ];
   if (sex === 'female') steps.push('female');
-  steps.push('lifestyle', 'summary');
+  steps.push('lifestyle', 'extra', 'summary');
   return steps;
 }
 
@@ -208,6 +209,7 @@ export default function QuestionnairePage() {
       case 'health':
       case 'female':
       case 'lifestyle':
+      case 'extra':
         return true;
       default:
         return true;
@@ -263,6 +265,7 @@ export default function QuestionnairePage() {
               {step === 'duration' && <DurationStep />}
               {step === 'female' && <FemaleStep />}
               {step === 'lifestyle' && <LifestyleStep />}
+              {step === 'extra' && <ExtraStep />}
               {step === 'summary' && <SummaryStep />}
             </motion.div>
           </AnimatePresence>
@@ -707,6 +710,25 @@ function LifestyleStep() {
   );
 }
 
+function ExtraStep() {
+  const { questionnaire, updateQuestionnaire } = useApp();
+  return (
+    <>
+      <StepHeader
+        title="Дополнительные пожелания"
+        hint="Расскажите, что ещё важно учесть при составлении программы тренировок: ваши предпочтения, ограничения, любимые или нежелательные упражнения, особенности тренировок и любые другие пожелания. Чем больше деталей вы укажете, тем точнее AI сможет подобрать программу под вас."
+      />
+      <textarea
+        value={questionnaire.notes ?? ''}
+        onChange={(e) => updateQuestionnaire({ notes: e.target.value })}
+        rows={6}
+        placeholder="Например: люблю становую тягу, не хочу приседания со штангой, тренируюсь рано утром, важно проработать пресс и спину…"
+        className="w-full resize-none rounded-2xl border border-ink-100 p-4 text-[14px] leading-relaxed text-ink-900 placeholder:text-ink-400 focus:border-brand focus:outline-none"
+      />
+    </>
+  );
+}
+
 function SummaryStep() {
   const { questionnaire: q } = useApp();
   return (
@@ -751,6 +773,7 @@ function SummaryStep() {
         {q.pastInjuries ? <SummaryRow label="Травмы" value={q.pastInjuries} /> : null}
         {q.currentComplaints ? <SummaryRow label="Жалобы" value={q.currentComplaints} /> : null}
         {q.medicalRestrictions ? <SummaryRow label="Противопоказания" value={q.medicalRestrictions} /> : null}
+        {q.notes?.trim() ? <SummaryRow label="Пожелания" value={q.notes} /> : null}
       </div>
     </>
   );
