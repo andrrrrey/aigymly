@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { AuthProvider } from '@/components/AuthProvider';
+import { YandexMetrika } from '@/components/YandexMetrika';
 
 export const metadata: Metadata = {
   title: 'Ai Gymly — умный фитнес планер',
@@ -20,6 +21,9 @@ export const metadata: Metadata = {
     capable: true,
     title: 'Ai Gymly',
     statusBarStyle: 'default',
+  },
+  other: {
+    'p:domain_verify': 'dcfc63576ab8cca8d1e9a7b925d5a03e',
   },
 };
 
@@ -42,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </AuthProvider>
         <ServiceWorkerRegister />
+        <YandexMetrika />
       </body>
     </html>
   );
