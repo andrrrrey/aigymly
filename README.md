@@ -49,7 +49,19 @@ TBANK_PASSWORD=""
 
 # Автосписание подписок (cron). CRON_SECRET защищает POST /api/cron/charge-subscriptions.
 CRON_SECRET=""
+
+# Шифрование секретов в БД (ключи OpenAI/T-Bank, пароль терминала). AES-256-GCM.
+# 64 hex-символа (32 байта) — используется как ключ напрямую; иначе строка
+# хешируется в ключ (SHA-256). Если не задан — секреты хранятся в открытом виде.
+# Сгенерировать: openssl rand -hex 32
+SETTINGS_ENCRYPTION_KEY=""
 ```
+
+> **Секреты в БД шифруются.** Значения ключей/паролей, введённые в админке,
+> сохраняются зашифрованными (AES-256-GCM) с префиксом `enc:v1:`. Ранее
+> сохранённые открытым текстом значения продолжают читаться и перешифровываются
+> при следующем сохранении. Меняя `SETTINGS_ENCRYPTION_KEY`, заново введите
+> секреты в админке (старые значения не расшифруются).
 
 > `APP_URL` также используется как базовый адрес для колбэков T-Bank
 > (`NotificationURL`/`SuccessURL`/`FailURL`). На проде задайте публичный HTTPS-URL.
@@ -85,15 +97,29 @@ Ai Gymly Pro открываются AI-чат и создание дополни
 - Вебхук `POST /api/payments/notification` проверяет подпись и активирует/продлевает подписку.
 - Автопродление: внешний планировщик раз в день вызывает
   `POST /api/cron/charge-subscriptions` с заголовком `Authorization: Bearer $CRON_SECRET`;
-  роут списывает по сохранённому `RebillId` (`Init` без `Recurrent` → `Charge`). Пример для
-  системного cron:
+  роут списывает по сохранённому `RebillId` (`Init` без `Recurrent` → `Charge`).
+
+  В репозитории есть готовый скрипт `scripts/charge-subscriptions.sh`: он подхватывает
+  `APP_URL` и `CRON_SECRET` из окружения (или из `.env.local` / `.env` проекта), делает
+  POST-запрос и завершается с ненулевым кодом при ошибке (удобно для мониторинга).
+
+  Установка в системный cron (например, каждый день в 03:00):
 
   ```bash
-  0 3 * * * curl -fsS -X POST https://<APP_URL>/api/cron/charge-subscriptions \
-    -H "Authorization: Bearer $CRON_SECRET"
+  chmod +x scripts/charge-subscriptions.sh
+  crontab -e
+  # добавить строку (укажите абсолютный путь к проекту и лог):
+  0 3 * * * /path/to/aigymly/scripts/charge-subscriptions.sh >> /var/log/aigymly-cron.log 2>&1
   ```
 
-  На Vercel — эквивалент через `vercel.json` `crons` на тот же путь (секрет передаётся заголовком).
+  Если переменные не лежат в `.env`, задайте их прямо в crontab:
+
+  ```bash
+  0 3 * * * APP_URL=https://aigymly.example.com CRON_SECRET=xxxx /path/to/aigymly/scripts/charge-subscriptions.sh >> /var/log/aigymly-cron.log 2>&1
+  ```
+
+  Альтернативы: `curl -fsS -X POST https://<APP_URL>/api/cron/charge-subscriptions -H "Authorization: Bearer $CRON_SECRET"`
+  напрямую, либо на Vercel — `vercel.json` `crons` на тот же путь.
 - Автопродление можно выключить в профиле (тумблер), тогда подписка завершится в конце периода.
 
 ## AI-генерация программ

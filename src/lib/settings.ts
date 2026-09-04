@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/lib/db'
+import { encryptSecret, decryptSecret } from '@/lib/crypto'
 
 // Latest capable OpenAI model used by default. Editable from the admin panel.
 export const DEFAULT_OPENAI_MODEL = 'gpt-4o'
@@ -32,8 +33,20 @@ export async function setSetting(key: string, value: string): Promise<void> {
   })
 }
 
+// Encrypted variants for sensitive values (API keys, terminal passwords).
+// Reads transparently decrypt, tolerating legacy plaintext rows.
+export async function getSecret(key: string): Promise<string | null> {
+  const stored = await getSetting(key)
+  if (stored === null) return null
+  return decryptSecret(stored)
+}
+
+export async function setSecret(key: string, value: string): Promise<void> {
+  await setSetting(key, encryptSecret(value))
+}
+
 export async function getOpenAIKey(): Promise<string | null> {
-  const fromDb = await getSetting(SETTING_KEYS.openaiApiKey)
+  const fromDb = await getSecret(SETTING_KEYS.openaiApiKey)
   if (fromDb && fromDb.trim()) return fromDb.trim()
   const fromEnv = process.env.OPENAI_API_KEY
   return fromEnv && fromEnv.trim() ? fromEnv.trim() : null
@@ -55,8 +68,8 @@ export interface TbankConfig {
 
 // Resolves T-Bank credentials, preferring admin-panel values over env fallbacks.
 export async function getTbankConfig(): Promise<TbankConfig> {
-  const terminalKeyDb = await getSetting(SETTING_KEYS.tbankTerminalKey)
-  const passwordDb = await getSetting(SETTING_KEYS.tbankPassword)
+  const terminalKeyDb = await getSecret(SETTING_KEYS.tbankTerminalKey)
+  const passwordDb = await getSecret(SETTING_KEYS.tbankPassword)
   const modeDb = await getSetting(SETTING_KEYS.tbankMode)
   const taxationDb = await getSetting(SETTING_KEYS.tbankTaxation)
   const vatDb = await getSetting(SETTING_KEYS.tbankVat)

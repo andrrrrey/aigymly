@@ -4,6 +4,8 @@ import {
   SETTING_KEYS,
   getSetting,
   setSetting,
+  getSecret,
+  setSecret,
   getOpenAIModel,
   getTbankConfig,
   DEFAULT_TBANK_TAXATION,
@@ -19,13 +21,13 @@ export async function GET() {
   const admin = await getAdminSession()
   if (!admin) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
 
-  const key = await getSetting(SETTING_KEYS.openaiApiKey)
+  const key = await getSecret(SETTING_KEYS.openaiApiKey)
   const model = await getOpenAIModel()
   const hasEnvKey = !!process.env.OPENAI_API_KEY?.trim()
 
   const tbank = await getTbankConfig()
-  const tbankKeyDb = await getSetting(SETTING_KEYS.tbankTerminalKey)
-  const tbankPassDb = await getSetting(SETTING_KEYS.tbankPassword)
+  const tbankKeyDb = await getSecret(SETTING_KEYS.tbankTerminalKey)
+  const tbankPassDb = await getSecret(SETTING_KEYS.tbankPassword)
   const hasEnvTbankKey = !!process.env.TBANK_TERMINAL_KEY?.trim()
   const hasEnvTbankPass = !!process.env.TBANK_PASSWORD?.trim()
 
@@ -69,18 +71,19 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
   }
 
-  // Only overwrite secrets when a non-empty value is provided.
+  // Only overwrite secrets when a non-empty value is provided; secrets are
+  // stored encrypted (AES-256-GCM) via setSecret.
   if (typeof body.openaiApiKey === 'string' && body.openaiApiKey.trim()) {
-    await setSetting(SETTING_KEYS.openaiApiKey, body.openaiApiKey.trim())
+    await setSecret(SETTING_KEYS.openaiApiKey, body.openaiApiKey.trim())
   }
   if (typeof body.model === 'string' && body.model.trim()) {
     await setSetting(SETTING_KEYS.openaiModel, body.model.trim())
   }
   if (typeof body.tbankTerminalKey === 'string' && body.tbankTerminalKey.trim()) {
-    await setSetting(SETTING_KEYS.tbankTerminalKey, body.tbankTerminalKey.trim())
+    await setSecret(SETTING_KEYS.tbankTerminalKey, body.tbankTerminalKey.trim())
   }
   if (typeof body.tbankPassword === 'string' && body.tbankPassword.trim()) {
-    await setSetting(SETTING_KEYS.tbankPassword, body.tbankPassword.trim())
+    await setSecret(SETTING_KEYS.tbankPassword, body.tbankPassword.trim())
   }
   if (body.tbankMode === 'test' || body.tbankMode === 'production') {
     await setSetting(SETTING_KEYS.tbankMode, body.tbankMode)
