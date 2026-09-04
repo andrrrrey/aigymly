@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, Settings, LogOut } from 'lucide-react';
+import { Users, Settings, LogOut, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function AdminNav({ username }: { username: string }) {
@@ -17,6 +17,7 @@ export function AdminNav({ username }: { username: string }) {
 
   const links = [
     { href: '/admin', label: 'Пользователи', icon: Users },
+    { href: '/admin/plans', label: 'Тарифы', icon: CreditCard },
     { href: '/admin/settings', label: 'Настройки', icon: Settings },
   ];
 

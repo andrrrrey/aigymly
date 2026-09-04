@@ -20,6 +20,8 @@ model User {
   tokens        Token[]
   workouts      Workout[]
   programs      Program[]
+  subscription  Subscription?
+  payments      Payment[]
 }
 
 model Workout {
@@ -80,4 +82,58 @@ model Setting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// A purchasable subscription plan. Prices are stored in kopecks so they map
+// directly onto T-Bank's `Amount` field without rounding. Fully editable from
+// the admin panel.
+model Plan {
+  id            String         @id @default(cuid())
+  name          String
+  priceKopecks  Int
+  periodDays    Int
+  active        Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+  payments      Payment[]
+}
+
+// A user's subscription state. One row per user (reused across renewals).
+// `rebillId` is the saved-card token returned by T-Bank on the first recurrent
+// payment; it is used to auto-charge subsequent periods.
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId           String?
+  plan             Plan?     @relation(fields: [planId], references: [id])
+  status           String    @default("none") // none|pending|active|past_due|canceled|expired
+  currentPeriodEnd DateTime?
+  rebillId         String?
+  autoRenew        Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  payments         Payment[]
+}
+
+// A single payment attempt against T-Bank. `orderId` is our own identifier
+// (echoed back in the webhook); `tbankPaymentId` is T-Bank's PaymentId.
+model Payment {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  planId         String?
+  plan           Plan?         @relation(fields: [planId], references: [id])
+  orderId        String        @unique
+  tbankPaymentId String?
+  amountKopecks  Int
+  status         String        @default("NEW")
+  isRecurrent    Boolean       @default(false)
+  raw            String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }

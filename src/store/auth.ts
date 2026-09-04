@@ -9,6 +9,7 @@ export interface AuthUser {
   sex?: 'male' | 'female' | null
   avatarUrl?: string | null
   units?: Units | null
+  isPro?: boolean
 }
 
 interface AuthState {

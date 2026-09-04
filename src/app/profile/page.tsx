@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BottomNav } from '@/components/BottomNav';
 import { AuthSheet } from '@/components/auth/AuthSheet';
+import { SubscriptionCard } from '@/components/SubscriptionCard';
 import { useAuth } from '@/store/auth';
 import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle, Loader2, Send, Camera } from 'lucide-react';
 
@@ -288,7 +289,13 @@ export default function ProfilePage() {
         )}
 
         {user && (
-          <div className="mt-6 space-y-3">
+          <div className="mt-6">
+            <SubscriptionCard />
+          </div>
+        )}
+
+        {user && (
+          <div className="mt-3 space-y-3">
             <div className="rounded-2xl border border-ink-100 p-4">
               <div className="mb-2 text-[13px] font-medium text-ink-500">Пол</div>
               <div className="flex gap-2">

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Sparkles, ChevronRight, Dumbbell } from 'lucide-react';
+import { Sparkles, ChevronRight, Dumbbell, Lock } from 'lucide-react';
 import { BottomNav } from '@/components/BottomNav';
 import { useAuth } from '@/store/auth';
 
@@ -56,26 +56,33 @@ export default function ProgramsPage() {
       </header>
 
       <main className="no-scrollbar flex-1 overflow-y-auto bg-white px-5 pb-24 pt-2">
-        {/* AI banner — main CTA */}
-        <Link
-          href="/questionnaire"
-          className="tappable mb-5 block overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-5 text-white shadow-elevated"
-        >
-          <div className="flex items-start gap-4">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/15">
-              <Sparkles size={22} strokeWidth={2.2} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-[18px] font-semibold tracking-tight">
-                Программа от AI
-              </h3>
-              <p className="mt-1 text-[13px] leading-snug text-white/85">
-                Ответь на несколько вопросов — AI соберёт персональную программу на 8 недель
-              </p>
-            </div>
-            <ChevronRight size={20} className="shrink-0 text-white/70" />
-          </div>
-        </Link>
+        {/* AI banner — main CTA. Free tier allows one program; extra programs need Pro. */}
+        {(() => {
+          const locked = !!user && !user.isPro && programs.length >= 1;
+          return (
+            <Link
+              href={locked ? '/subscribe' : '/questionnaire'}
+              className="tappable mb-5 block overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-5 text-white shadow-elevated"
+            >
+              <div className="flex items-start gap-4">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/15">
+                  {locked ? <Lock size={20} strokeWidth={2.2} /> : <Sparkles size={22} strokeWidth={2.2} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[18px] font-semibold tracking-tight">
+                    {locked ? 'Ещё программа — с Pro' : 'Программа от AI'}
+                  </h3>
+                  <p className="mt-1 text-[13px] leading-snug text-white/85">
+                    {locked
+                      ? 'Бесплатно доступна одна программа. Оформите подписку, чтобы создавать больше.'
+                      : 'Ответь на несколько вопросов — AI соберёт персональную программу на 8 недель'}
+                  </p>
+                </div>
+                <ChevronRight size={20} className="shrink-0 text-white/70" />
+              </div>
+            </Link>
+          );
+        })()}
 
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[16px] font-semibold tracking-tight text-ink-900">
