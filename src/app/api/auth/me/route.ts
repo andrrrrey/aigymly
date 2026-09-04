@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getEntitlement } from '@/lib/entitlements'
 
 export async function GET() {
   const session = await getSession()
@@ -17,7 +18,9 @@ export async function GET() {
     return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
   }
 
-  return NextResponse.json(user)
+  const ent = await getEntitlement(session.sub)
+
+  return NextResponse.json({ ...user, isPro: ent.isPro })
 }
 
 export async function PATCH(req: Request) {

@@ -7,7 +7,17 @@ export const DEFAULT_OPENAI_MODEL = 'gpt-4o'
 export const SETTING_KEYS = {
   openaiApiKey: 'openai_api_key',
   openaiModel: 'openai_model',
+  // T-Bank (Tinkoff) internet acquiring.
+  tbankTerminalKey: 'tbank_terminal_key',
+  tbankPassword: 'tbank_password',
+  tbankMode: 'tbank_mode', // 'test' | 'production' (label only; endpoint is shared)
+  tbankTaxation: 'tbank_taxation', // e.g. 'usn_income'
+  tbankVat: 'tbank_vat', // e.g. 'none'
+  tbankCompanyEmail: 'tbank_company_email', // seller contact for the fiscal receipt
 } as const
+
+export const DEFAULT_TBANK_TAXATION = 'usn_income'
+export const DEFAULT_TBANK_VAT = 'none'
 
 export async function getSetting(key: string): Promise<string | null> {
   const row = await db.setting.findUnique({ where: { key } })
@@ -32,4 +42,41 @@ export async function getOpenAIKey(): Promise<string | null> {
 export async function getOpenAIModel(): Promise<string> {
   const fromDb = await getSetting(SETTING_KEYS.openaiModel)
   return fromDb && fromDb.trim() ? fromDb.trim() : DEFAULT_OPENAI_MODEL
+}
+
+export interface TbankConfig {
+  terminalKey: string | null
+  password: string | null
+  mode: 'test' | 'production'
+  taxation: string
+  vat: string
+  companyEmail: string | null
+}
+
+// Resolves T-Bank credentials, preferring admin-panel values over env fallbacks.
+export async function getTbankConfig(): Promise<TbankConfig> {
+  const terminalKeyDb = await getSetting(SETTING_KEYS.tbankTerminalKey)
+  const passwordDb = await getSetting(SETTING_KEYS.tbankPassword)
+  const modeDb = await getSetting(SETTING_KEYS.tbankMode)
+  const taxationDb = await getSetting(SETTING_KEYS.tbankTaxation)
+  const vatDb = await getSetting(SETTING_KEYS.tbankVat)
+  const companyEmailDb = await getSetting(SETTING_KEYS.tbankCompanyEmail)
+
+  const terminalKey =
+    (terminalKeyDb && terminalKeyDb.trim()) ||
+    (process.env.TBANK_TERMINAL_KEY && process.env.TBANK_TERMINAL_KEY.trim()) ||
+    null
+  const password =
+    (passwordDb && passwordDb.trim()) ||
+    (process.env.TBANK_PASSWORD && process.env.TBANK_PASSWORD.trim()) ||
+    null
+
+  return {
+    terminalKey,
+    password,
+    mode: modeDb === 'production' ? 'production' : 'test',
+    taxation: (taxationDb && taxationDb.trim()) || DEFAULT_TBANK_TAXATION,
+    vat: (vatDb && vatDb.trim()) || DEFAULT_TBANK_VAT,
+    companyEmail: (companyEmailDb && companyEmailDb.trim()) || null,
+  }
 }

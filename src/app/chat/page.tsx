@@ -1,11 +1,17 @@
 'use client';
 
 import { BottomNav } from '@/components/BottomNav';
+import { Paywall } from '@/components/Paywall';
 import { Sparkles, Send } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '@/store/auth';
 
 export default function ChatPage() {
   const [input, setInput] = useState('');
+  const user = useAuth((s) => s.user);
+  const loading = useAuth((s) => s.loading);
+  const isPro = !!user?.isPro;
+
   return (
     <>
       <header
@@ -23,25 +29,45 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <main className="no-scrollbar flex-1 overflow-y-auto bg-white px-5 py-5">
-        <div className="mx-auto max-w-sm rounded-2xl bg-ink-50 p-4 text-[14px] text-ink-700">
-          👋 Привет! Я помогу с тренировками, упражнениями и здоровьем. Спроси что-нибудь, или попроси скорректировать программу.
-        </div>
-      </main>
-
-      <div className="shrink-0 border-t border-ink-100 bg-white px-5 py-3">
-        <div className="flex items-center gap-2 rounded-full bg-ink-100 px-4 py-2">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Сообщение..."
-            className="min-w-0 flex-1 bg-transparent text-[15px] text-ink-900 placeholder:text-ink-400 focus:outline-none"
+      {loading ? (
+        <main className="flex-1 bg-white px-5 py-10 text-center text-[13px] text-ink-400">
+          Загрузка…
+        </main>
+      ) : !isPro ? (
+        <main className="no-scrollbar flex-1 overflow-y-auto bg-white px-5 py-6">
+          <Paywall
+            title="Чат с AI — по подписке"
+            description={
+              user
+                ? 'Оформите подписку Ai Gymly Pro, чтобы общаться с AI-ассистентом.'
+                : 'Войдите и оформите подписку, чтобы общаться с AI-ассистентом.'
+            }
+            features={['Чат с AI-ассистентом', 'Безлимит программ от AI', 'Помощь с питанием и техникой']}
           />
-          <button className="tappable grid h-9 w-9 place-items-center rounded-full bg-brand text-white">
-            <Send size={16} />
-          </button>
-        </div>
-      </div>
+        </main>
+      ) : (
+        <>
+          <main className="no-scrollbar flex-1 overflow-y-auto bg-white px-5 py-5">
+            <div className="mx-auto max-w-sm rounded-2xl bg-ink-50 p-4 text-[14px] text-ink-700">
+              👋 Привет! Я помогу с тренировками, упражнениями и здоровьем. Спроси что-нибудь, или попроси скорректировать программу.
+            </div>
+          </main>
+
+          <div className="shrink-0 border-t border-ink-100 bg-white px-5 py-3">
+            <div className="flex items-center gap-2 rounded-full bg-ink-100 px-4 py-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Сообщение..."
+                className="min-w-0 flex-1 bg-transparent text-[15px] text-ink-900 placeholder:text-ink-400 focus:outline-none"
+              />
+              <button className="tappable grid h-9 w-9 place-items-center rounded-full bg-brand text-white">
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
       <BottomNav />
     </>
   );

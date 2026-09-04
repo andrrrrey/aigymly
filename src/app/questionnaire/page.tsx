@@ -167,6 +167,11 @@ export default function QuestionnairePage() {
         setAuthOpen(true);
         return;
       }
+      if (res.status === 402) {
+        // Free tier allows one program; further programs require a subscription.
+        router.push('/subscribe');
+        return;
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data?.error === 'OPENAI_KEY_MISSING') {

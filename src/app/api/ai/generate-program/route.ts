@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { getEntitlement, FREE_PROGRAM_LIMIT } from '@/lib/entitlements'
 import { generateProgram, OpenAIError } from '@/lib/openai'
 import type { QuestionnaireAnswers } from '@/types'
 
 export async function POST(req: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+
+  // Free tier allows a single program; additional programs require a subscription.
+  const ent = await getEntitlement(session.sub)
+  if (!ent.isPro) {
+    const programCount = await db.program.count({ where: { userId: session.sub } })
+    if (programCount >= FREE_PROGRAM_LIMIT) {
+      return NextResponse.json({ error: 'SUBSCRIPTION_REQUIRED' }, { status: 402 })
+    }
+  }
 
   let answers: QuestionnaireAnswers
   try {
