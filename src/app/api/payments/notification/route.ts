@@ -58,12 +58,15 @@ export async function POST(req: Request) {
           : now
       const newEnd = new Date(base + plan.periodDays * 24 * 60 * 60 * 1000)
 
+      // A successful card payment saves the card (RebillId) for recurring
+      // charges, so a paid subscription opts into auto-renew by default.
       await db.subscription.upsert({
         where: { userId: payment.userId },
         update: {
           planId: plan.id,
           status: 'active',
           currentPeriodEnd: newEnd,
+          autoRenew: true,
           ...(rebillId ? { rebillId } : {}),
         },
         create: {
@@ -71,6 +74,7 @@ export async function POST(req: Request) {
           planId: plan.id,
           status: 'active',
           currentPeriodEnd: newEnd,
+          autoRenew: true,
           rebillId: rebillId ?? undefined,
         },
       })
