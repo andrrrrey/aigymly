@@ -1,5 +1,8 @@
 import 'server-only'
 import crypto from 'crypto'
+import https from 'https'
+import tls from 'tls'
+import fs from 'fs'
 
 // T-Bank (Tinkoff) internet-acquiring client.
 //
@@ -79,31 +82,77 @@ export function verifyNotificationToken(
   return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
+// T-Bank's TLS chain is rooted at the Russian Trusted Root CA (Минцифры), which
+// is absent from Node's bundled trust store. Point TBANK_CA_CERT_PATH at a PEM
+// with that root (and sub CA) to trust it — added ON TOP of the default roots,
+// never replacing them. When unset, the default trust store is used (so a
+// process-level NODE_EXTRA_CA_CERTS keeps working). We never disable TLS checks.
+let cachedAgent: https.Agent | null | undefined
+
+function getTbankHttpsAgent(): https.Agent | undefined {
+  if (cachedAgent !== undefined) return cachedAgent ?? undefined
+
+  const caPath = process.env.TBANK_CA_CERT_PATH?.trim()
+  if (!caPath) {
+    cachedAgent = null
+    return undefined
+  }
+  try {
+    const extra = fs.readFileSync(caPath, 'utf8')
+    cachedAgent = new https.Agent({
+      ca: [...tls.rootCertificates, extra],
+      keepAlive: true,
+    })
+  } catch (err) {
+    console.error('[tbank] failed to load TBANK_CA_CERT_PATH', err)
+    cachedAgent = null
+  }
+  return cachedAgent ?? undefined
+}
+
 async function tbankRequest<T = Record<string, unknown>>(
   method: string,
   body: Record<string, unknown>
 ): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(`${TBANK_BASE_URL}/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    })
-  } catch (err) {
+  const payload = JSON.stringify(body)
+
+  const raw = await new Promise<{ status: number; text: string }>((resolve, reject) => {
+    const req = https.request(
+      `${TBANK_BASE_URL}/${method}`,
+      {
+        method: 'POST',
+        agent: getTbankHttpsAgent(),
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+        timeout: 30_000,
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c) => chunks.push(c as Buffer))
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') })
+        )
+      }
+    )
+    req.on('error', reject)
+    req.on('timeout', () => req.destroy(new Error('request timed out')))
+    req.write(payload)
+    req.end()
+  }).catch((err) => {
     throw new TbankError('TBANK_REQUEST_FAILED', `network error calling ${method}`, err)
-  }
+  })
 
   let json: Record<string, unknown>
   try {
-    json = (await res.json()) as Record<string, unknown>
+    json = JSON.parse(raw.text) as Record<string, unknown>
   } catch (err) {
     throw new TbankError('TBANK_REQUEST_FAILED', `bad JSON from ${method}`, err)
   }
 
-  if (!res.ok) {
-    throw new TbankError('TBANK_REQUEST_FAILED', `HTTP ${res.status} from ${method}`, json)
+  if (raw.status < 200 || raw.status >= 300) {
+    throw new TbankError('TBANK_REQUEST_FAILED', `HTTP ${raw.status} from ${method}`, json)
   }
   return json as T
 }

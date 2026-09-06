@@ -47,6 +47,11 @@ OPENAI_API_KEY=""
 TBANK_TERMINAL_KEY=""
 TBANK_PASSWORD=""
 
+# Путь к PEM с корневым (и подчинённым) сертификатом Russian Trusted Root CA
+# (Минцифры). Нужен, чтобы Node доверял TLS-цепочке securepay.tinkoff.ru.
+# Добавляется поверх стандартных корней (проверка TLS не отключается).
+TBANK_CA_CERT_PATH=""
+
 # Автосписание подписок (cron). CRON_SECRET защищает POST /api/cron/charge-subscriptions.
 CRON_SECRET=""
 
@@ -134,6 +139,35 @@ Ai Gymly Pro открываются AI-чат и создание дополни
   Альтернативы: `curl -fsS -X POST https://<APP_URL>/api/cron/charge-subscriptions -H "Authorization: Bearer $CRON_SECRET"`
   напрямую, либо на Vercel — `vercel.json` `crons` на тот же путь.
 - Автопродление можно выключить в профиле (тумблер), тогда подписка завершится в конце периода.
+
+### TLS: доверие к сертификату T-Bank (Russian Trusted Root CA)
+
+`securepay.tinkoff.ru` отдаёт TLS-цепочку с корнем **Russian Trusted Root CA (Минцифры)**,
+которого нет в стандартном хранилище Node. Без него запросы к T-Bank падают с
+`Error: self-signed certificate in certificate chain` (`SELF_SIGNED_CERT_IN_CHAIN`).
+Проверку TLS отключать нельзя (`NODE_TLS_REJECT_UNAUTHORIZED=0` — недопустимо) — нужно
+**добавить** российский корень в доверие.
+
+1. Скачайте официальные сертификаты Минцифры (корневой + подчинённый) с Госуслуг
+   (`https://www.gosuslugi.ru/crt`) и объедините в один PEM:
+
+   ```bash
+   mkdir -p /var/www/aigymly/certs
+   # если файлы в DER (.cer): openssl x509 -inform der -in root.cer -out root.pem
+   cat russian_trusted_root_ca_pem.crt russian_trusted_sub_ca_pem.crt \
+     > /var/www/aigymly/certs/russian-trusted.pem
+   # проверка (ожидаем Verify return code: 0 (ok)):
+   openssl s_client -connect securepay.tinkoff.ru:443 \
+     -CAfile /var/www/aigymly/certs/russian-trusted.pem </dev/null 2>/dev/null | grep "Verify return code"
+   ```
+
+2. Включите доверие одним из способов:
+   - **Через приложение** (читается из `.env.local`, добавляется поверх стандартных корней):
+     `TBANK_CA_CERT_PATH="/var/www/aigymly/certs/russian-trusted.pem"`, затем `pm2 restart aigymly`.
+   - **Глобально для Node**: `NODE_EXTRA_CA_CERTS=/var/www/aigymly/certs/russian-trusted.pem` —
+     задавать нужно в **процессном** окружении (pm2 ecosystem `env` или экспорт перед стартом;
+     в `.env.local` не сработает, т.к. Node читает переменную при запуске), затем
+     `pm2 restart aigymly --update-env`.
 
 ## AI-генерация программ
 
