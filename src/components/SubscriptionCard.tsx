@@ -92,16 +92,17 @@ export function SubscriptionCard() {
         <span className="text-[14px] text-ink-700">Автопродление</span>
         <button
           type="button"
+          role="switch"
           onClick={toggleAutoRenew}
           disabled={saving}
-          aria-pressed={sub.autoRenew}
-          className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-60 ${
+          aria-checked={sub.autoRenew}
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors disabled:opacity-60 ${
             sub.autoRenew ? 'bg-brand' : 'bg-ink-200'
           }`}
         >
           <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-              sub.autoRenew ? 'translate-x-[22px]' : 'translate-x-0.5'
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+              sub.autoRenew ? 'translate-x-5' : 'translate-x-0'
             }`}
           />
         </button>
