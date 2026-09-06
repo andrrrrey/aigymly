@@ -176,6 +176,10 @@ export default function QuestionnairePage() {
         const data = await res.json().catch(() => ({}));
         if (data?.error === 'OPENAI_KEY_MISSING') {
           setError('Генерация недоступна: администратор ещё не настроил ключ OpenAI.');
+        } else if (data?.error === 'QUOTA_EXCEEDED') {
+          setError('Лимит создания программ на этот период исчерпан. Попробуй позже.');
+        } else if (res.status === 429) {
+          setError('Слишком часто. Подожди немного и попробуй снова.');
         } else {
           setError('Не удалось собрать программу. Попробуй ещё раз.');
         }

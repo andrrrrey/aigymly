@@ -24,6 +24,16 @@ interface AdminUser {
   subscription: UserSub;
 }
 
+interface AiMetrics {
+  periodDays: number;
+  payingUsers: number;
+  programCount: number;
+  statsCount: number;
+  totalCostKopecks: number;
+  costPerPayingUserKopecks: number | null;
+  errorRate: number;
+}
+
 // Preset grant durations offered in the admin UI.
 const GRANT_OPTIONS = [
   { label: 'Месяц', days: 30 },
@@ -31,8 +41,14 @@ const GRANT_OPTIONS = [
   { label: 'Год', days: 365 },
 ];
 
+function formatRub(kopecks: number | null): string {
+  if (kopecks === null) return '—';
+  return `${(kopecks / 100).toFixed(2)} ₽`;
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [metrics, setMetrics] = useState<AiMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -45,6 +61,13 @@ export default function AdminUsersPage() {
   };
 
   useEffect(load, []);
+
+  useEffect(() => {
+    fetch('/api/admin/ai-metrics')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: AiMetrics | null) => setMetrics(data))
+      .catch(() => {});
+  }, []);
 
   const grant = async (userId: string, days: number) => {
     setBusyId(userId);
@@ -77,6 +100,32 @@ export default function AdminUsersPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
+      {metrics && (
+        <section className="mb-6">
+          <h2 className="mb-2 text-[15px] font-semibold tracking-tight text-ink-900">
+            ИИ за последние {metrics.periodDays} дней
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              { label: 'Себестоимость / платящий', value: formatRub(metrics.costPerPayingUserKopecks) },
+              { label: 'Всего расходы ИИ', value: formatRub(metrics.totalCostKopecks) },
+              { label: 'Генераций программ', value: String(metrics.programCount) },
+              { label: 'Анализов статистики', value: String(metrics.statsCount) },
+              { label: 'Доля ошибок', value: `${(metrics.errorRate * 100).toFixed(1)}%` },
+            ].map((m) => (
+              <div key={m.label} className="rounded-2xl border border-ink-200 bg-white p-4">
+                <div className="text-[20px] font-semibold tabular text-ink-900">{m.value}</div>
+                <div className="mt-0.5 text-[12px] leading-snug text-ink-400">{m.label}</div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 px-1 text-[12px] text-ink-400">
+            Оценка стоимости по ценам моделей и бюджетному курсу; повторные (кэшированные) анализы
+            не расходуют токены и не попадают в расходы.
+          </p>
+        </section>
+      )}
+
       <div className="mb-5 flex items-baseline justify-between">
         <h1 className="text-[22px] font-semibold tracking-tight text-ink-900">Пользователи</h1>
         <span className="text-[13px] text-ink-400">Всего: {users.length}</span>

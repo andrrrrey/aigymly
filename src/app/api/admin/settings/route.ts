@@ -7,6 +7,8 @@ import {
   getSecret,
   setSecret,
   getOpenAIModel,
+  getOpenAIModelForPrograms,
+  getOpenAIModelForStats,
   getTbankConfig,
   DEFAULT_TBANK_TAXATION,
   DEFAULT_TBANK_VAT,
@@ -23,6 +25,8 @@ export async function GET() {
 
   const key = await getSecret(SETTING_KEYS.openaiApiKey)
   const model = await getOpenAIModel()
+  const modelPrograms = await getOpenAIModelForPrograms()
+  const modelStats = await getOpenAIModelForStats()
   const hasEnvKey = !!process.env.OPENAI_API_KEY?.trim()
 
   const tbank = await getTbankConfig()
@@ -36,6 +40,8 @@ export async function GET() {
     openaiKeyMasked: key && key.trim() ? maskKey(key.trim()) : null,
     openaiKeyFromEnv: !(key && key.trim()) && hasEnvKey,
     model,
+    modelPrograms,
+    modelStats,
     tbank: {
       terminalKeySet: !!tbank.terminalKey,
       terminalKeyMasked:
@@ -58,6 +64,8 @@ export async function PUT(req: Request) {
   let body: {
     openaiApiKey?: string
     model?: string
+    modelPrograms?: string
+    modelStats?: string
     tbankTerminalKey?: string
     tbankPassword?: string
     tbankMode?: string
@@ -78,6 +86,12 @@ export async function PUT(req: Request) {
   }
   if (typeof body.model === 'string' && body.model.trim()) {
     await setSetting(SETTING_KEYS.openaiModel, body.model.trim())
+  }
+  if (typeof body.modelPrograms === 'string' && body.modelPrograms.trim()) {
+    await setSetting(SETTING_KEYS.openaiModelPrograms, body.modelPrograms.trim())
+  }
+  if (typeof body.modelStats === 'string' && body.modelStats.trim()) {
+    await setSetting(SETTING_KEYS.openaiModelStats, body.modelStats.trim())
   }
   if (typeof body.tbankTerminalKey === 'string' && body.tbankTerminalKey.trim()) {
     await setSecret(SETTING_KEYS.tbankTerminalKey, body.tbankTerminalKey.trim())

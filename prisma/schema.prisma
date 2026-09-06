@@ -22,6 +22,8 @@ model User {
   programs      Program[]
   subscription  Subscription?
   payments      Payment[]
+  aiUsage       AiUsage[]
+  aiStatsSummaries AiStatsSummary[]
 }
 
 model Workout {
@@ -136,4 +138,58 @@ model Payment {
   raw            String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+}
+
+// Journal of every OpenAI call made on a user's behalf. Records token usage and
+// an estimated ruble cost so the actual AI cost-per-subscriber is measurable.
+// `feature` is 'program' | 'stats'; `status` is 'success' | 'error'.
+// `estimatedCost` is in kopecks (Int) so it aggregates without float drift;
+// null when the model's pricing is unknown.
+model AiUsage {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature       String
+  model         String
+  inputTokens   Int      @default(0)
+  outputTokens  Int      @default(0)
+  cachedTokens  Int      @default(0)
+  estimatedCost Int?
+  status        String   @default("success")
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, feature, status, createdAt])
+}
+
+// Persistent server-side cache of the monthly AI stats summary. Keyed by user
+// and month; `payloadHash` is a hash of the aggregated stats the summary was
+// built from, so an unchanged month is served from here without hitting OpenAI.
+model AiStatsSummary {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthKey        String
+  payloadHash     String
+  summary         String
+  sourceUpdatedAt DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, monthKey])
+}
+
+// Editable per-plan quota. Lets AI action allowances be tuned from data without
+// a code change. `feature` is 'program' | 'stats'. Falls back to code constants
+// when no row exists for a plan/feature.
+model PlanLimit {
+  id         String   @id @default(cuid())
+  planId     String
+  feature    String
+  allowance  Int
+  periodDays Int      @default(30)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([planId, feature])
 }

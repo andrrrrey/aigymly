@@ -7,7 +7,11 @@ import { Sparkles, Lock, Check } from 'lucide-react';
 export function Paywall({
   title = 'Доступно по подписке',
   description = 'Оформите подписку Ai Gymly Pro, чтобы открыть эту функцию.',
-  features = ['Чат с AI-ассистентом', 'Безлимит программ от AI', 'Приоритетные обновления'],
+  features = [
+    'ИИ-программы тренировок',
+    'ИИ-анализ прогресса после каждой тренировки',
+    'Повторный просмотр программ и анализов',
+  ],
 }: {
   title?: string;
   description?: string;

@@ -1,6 +1,10 @@
 import 'server-only'
 import { uid } from '@/lib/utils'
-import { getOpenAIKey, getOpenAIModel } from '@/lib/settings'
+import {
+  getOpenAIKey,
+  getOpenAIModelForPrograms,
+  getOpenAIModelForStats,
+} from '@/lib/settings'
 import type {
   Exercise,
   ExerciseKind,
@@ -21,6 +25,61 @@ export class OpenAIError extends Error {
   constructor(code: OpenAIErrorCode, message?: string) {
     super(message ?? code)
     this.code = code
+  }
+}
+
+// ── Token usage & cost estimation ──────────────────────────────────────────
+
+// Model prices in USD per 1M tokens (input / output). Sourced from the tariff
+// document; used only to estimate cost — the source of truth is the stored
+// `usage`. Unknown models yield a null estimate rather than a wrong number.
+const MODEL_PRICING_USD_PER_M: Record<string, { input: number; output: number }> = {
+  'gpt-4o': { input: 2.5, output: 10 },
+  'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  'gpt-4.1': { input: 2, output: 8 },
+  'gpt-4.1-mini': { input: 0.4, output: 1.6 },
+  'gpt-4.1-nano': { input: 0.1, output: 0.4 },
+}
+
+// Budget FX rate with a margin over the official rate (see the tariff document).
+const RUB_PER_USD = 100
+
+export interface AiUsageInfo {
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cachedTokens: number
+  // Estimated cost in kopecks (Int, aggregation-safe); null when the model's
+  // pricing is unknown.
+  estimatedCostKopecks: number | null
+}
+
+// Estimated cost in kopecks. `inputTokens` already includes cached tokens
+// (which are billed cheaper), so this is a conservative upper bound.
+export function estimateCostKopecks(
+  model: string,
+  inputTokens: number,
+  outputTokens: number
+): number | null {
+  const p = MODEL_PRICING_USD_PER_M[model]
+  if (!p) return null
+  const usd = (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output
+  return Math.round(usd * RUB_PER_USD * 100)
+}
+
+function parseUsage(model: string, rawUsage: any): AiUsageInfo {
+  const inputTokens = Math.max(0, Math.round(Number(rawUsage?.prompt_tokens) || 0))
+  const outputTokens = Math.max(0, Math.round(Number(rawUsage?.completion_tokens) || 0))
+  const cachedTokens = Math.max(
+    0,
+    Math.round(Number(rawUsage?.prompt_tokens_details?.cached_tokens) || 0)
+  )
+  return {
+    model,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    estimatedCostKopecks: estimateCostKopecks(model, inputTokens, outputTokens),
   }
 }
 
@@ -186,9 +245,14 @@ function buildUserPrompt(a: QuestionnaireAnswers): string {
   return lines.join('\n')
 }
 
-const SYSTEM_PROMPT = `Роль: ты — сертифицированный персональный тренер и спортивный врач-методист с 15-летним стажем. Ты глубоко разбираешься в гендерной физиологии, биомеханике, эндокринологии и нутрициологии. Ты умеешь строить программы как для здорового человека, так и для клиента со сложным анамнезом и реабилитационными потребностями.
+const SYSTEM_PROMPT = `Роль: ты — сертифицированный персональный тренер и методист по физической подготовке с большим стажем. Ты хорошо разбираешься в гендерной физиологии, биомеханике и основах нутрициологии. ВАЖНО: ты не врач и не ставишь диагнозы. Твои рекомендации носят общий информационный характер и не заменяют консультацию врача.
 
-Задача: на основе анкеты пользователя разработать персональную программу тренировок на полный мезоцикл — 8 недель. Программа должна: бить точно в указанные цели (в том числе комбинацию целей); не выходить за рамки медицинских ограничений; использовать только доступное оборудование и место; учитывать пол, возраст, антропометрию, уровень подготовки, образ жизни и восстановление.
+Безопасность (высший приоритет, важнее любых целей):
+- Оцени уровень риска анкеты. Отнеси к ВЫСОКОМУ риску: беременность и послеродовой период, недавние операции и незавершённая реабилитация, острые травмы и боли, серьёзные хронические заболевания (неконтролируемая гипертония, болезни сердца, диабет с осложнениями, тяжёлые заболевания позвоночника/суставов) и любые состояния с явными противопоказаниями врача.
+- Для высокорисковых анкет НЕ выдавай интенсивную или потенциально опасную программу. Составляй только максимально щадящий, консервативный вариант из безопасных общеукрепляющих движений И обязательно рекомендуй очную консультацию врача/специалиста ЛФК до начала тренировок. Прямое противопоказание врача без допуска — исключай соответствующую нагрузку полностью.
+- В любом случае добавляй в поле analysis.recommendations краткий дисклеймер: рекомендации носят общий характер, не заменяют консультацию врача, при боли/ухудшении самочувствия нужно прекратить занятия и обратиться к специалисту.
+
+Задача: на основе анкеты пользователя разработать персональную программу тренировок на полный мезоцикл — 8 недель. Программа должна: бить точно в указанные цели (в том числе комбинацию целей); не выходить за рамки медицинских ограничений и приоритета безопасности выше; использовать только доступное оборудование и место; учитывать пол, возраст, антропометрию, уровень подготовки, образ жизни и восстановление.
 
 Структура мезоцикла — два блока по 4 недели:
 - Блок 1 (Недели 1–4): адаптация и закладка базы. Акцент на технику, нейромышечную связь, привыкание к режиму. Нагрузка умеренная, объём постепенно растущий. Для новичков этот блок — основной, без резкого усложнения.
@@ -217,7 +281,7 @@ const SYSTEM_PROMPT = `Роль: ты — сертифицированный п�
   "analysis": {
     "profile": "string — ИМТ и интерпретация, тип телосложения, уровень подготовки, уровень риска (низкий/средний/высокий) с обоснованием",
     "strategy": "string — приоритеты на 8 недель, ранжирование целей, стиль тренинга, режим повторений, тип кардио, принципы питания, описание двух блоков",
-    "recommendations": "string — питание под цель, водный баланс (30 мл на кг веса), сон и восстановление, особые указания"
+    "recommendations": "string — питание под цель, водный баланс (30 мл на кг веса), сон и восстановление, особые указания. В конце обязателен краткий дисклеймер: рекомендации носят общий характер и не заменяют консультацию врача; при боли или ухудшении самочувствия прекратить занятия и обратиться к специалисту"
   },
   "blocks": [
     {
@@ -391,11 +455,15 @@ function normalizeProgram(raw: any, goal?: Program['goal']): Program {
   }
 }
 
+// Upper bound on the JSON program response, so a runaway generation cannot rack
+// up output-token cost. An 8-week, two-block program fits comfortably below this.
+const PROGRAM_MAX_TOKENS = 8000
+
 async function callOpenAI(
   apiKey: string,
   model: string,
   userPrompt: string
-): Promise<string> {
+): Promise<{ content: string; usage: AiUsageInfo }> {
   let res: Response
   try {
     res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -412,6 +480,7 @@ async function callOpenAI(
         ],
         response_format: { type: 'json_object' },
         temperature: 0.7,
+        max_tokens: PROGRAM_MAX_TOKENS,
       }),
     })
   } catch (err) {
@@ -431,7 +500,7 @@ async function callOpenAI(
   if (typeof content !== 'string' || !content.trim()) {
     throw new OpenAIError('OPENAI_BAD_OUTPUT')
   }
-  return content
+  return { content, usage: parseUsage(model, json?.usage) }
 }
 
 // ── Stats summary (the «Сводка от AI» block on /stats) ─────────────────────
@@ -498,12 +567,15 @@ function buildStatsSummaryPrompt(s: StatsSummaryInput): string {
   return lines.join('\n')
 }
 
+// Upper bound on the stats summary output (a few short paragraphs).
+const STATS_MAX_TOKENS = 700
+
 async function callOpenAIText(
   apiKey: string,
   model: string,
   systemPrompt: string,
   userPrompt: string
-): Promise<string> {
+): Promise<{ content: string; usage: AiUsageInfo }> {
   let res: Response
   try {
     res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -519,6 +591,7 @@ async function callOpenAIText(
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.7,
+        max_tokens: STATS_MAX_TOKENS,
       }),
     })
   } catch (err) {
@@ -538,23 +611,41 @@ async function callOpenAIText(
   if (typeof content !== 'string' || !content.trim()) {
     throw new OpenAIError('OPENAI_BAD_OUTPUT')
   }
-  return content.trim()
+  return { content: content.trim(), usage: parseUsage(model, json?.usage) }
 }
 
-export async function generateStatsSummary(input: StatsSummaryInput): Promise<string> {
+export interface StatsSummaryResult {
+  summary: string
+  usage: AiUsageInfo
+}
+
+export async function generateStatsSummary(
+  input: StatsSummaryInput
+): Promise<StatsSummaryResult> {
   const apiKey = await getOpenAIKey()
   if (!apiKey) throw new OpenAIError('OPENAI_KEY_MISSING')
-  const model = await getOpenAIModel()
-  return callOpenAIText(apiKey, model, STATS_SUMMARY_SYSTEM, buildStatsSummaryPrompt(input))
+  const model = await getOpenAIModelForStats()
+  const { content, usage } = await callOpenAIText(
+    apiKey,
+    model,
+    STATS_SUMMARY_SYSTEM,
+    buildStatsSummaryPrompt(input)
+  )
+  return { summary: content, usage }
+}
+
+export interface ProgramResult {
+  program: Program
+  usage: AiUsageInfo
 }
 
 export async function generateProgram(
   answers: QuestionnaireAnswers,
   comment?: string
-): Promise<Program> {
+): Promise<ProgramResult> {
   const apiKey = await getOpenAIKey()
   if (!apiKey) throw new OpenAIError('OPENAI_KEY_MISSING')
-  const model = await getOpenAIModel()
+  const model = await getOpenAIModelForPrograms()
   let userPrompt = buildUserPrompt(answers)
   if (comment?.trim()) {
     userPrompt += `\n\nДополнительные пожелания пользователя (обязательно учти при перегенерации программы): ${comment.trim()}`
@@ -564,14 +655,14 @@ export async function generateProgram(
   let lastErr: unknown
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const content = await callOpenAI(apiKey, model, userPrompt)
+      const { content, usage } = await callOpenAI(apiKey, model, userPrompt)
       let parsed: unknown
       try {
         parsed = JSON.parse(content)
       } catch {
         throw new OpenAIError('OPENAI_BAD_OUTPUT')
       }
-      return normalizeProgram(parsed, answers.goals?.[0])
+      return { program: normalizeProgram(parsed, answers.goals?.[0]), usage }
     } catch (err) {
       lastErr = err
       // Only retry on bad output; rethrow hard failures immediately.
