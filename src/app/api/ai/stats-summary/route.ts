@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { getEntitlement } from '@/lib/entitlements'
 import { generateStatsSummary, OpenAIError, type StatsSummaryInput } from '@/lib/openai'
 
 function num(v: unknown, fallback = 0): number {
@@ -34,6 +36,12 @@ export async function POST(req: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
 
+  // AI summary is a Pro-only feature.
+  const ent = await getEntitlement(session.sub)
+  if (!ent.isPro) {
+    return NextResponse.json({ error: 'SUBSCRIPTION_REQUIRED' }, { status: 402 })
+  }
+
   let input: StatsSummaryInput
   try {
     input = sanitize(await req.json())
@@ -44,6 +52,13 @@ export async function POST(req: Request) {
   if (input.workoutCount <= 0) {
     return NextResponse.json({ error: 'NO_DATA' }, { status: 400 })
   }
+
+  // Take the user's sex from their account (trusted), not the request body.
+  const user = await db.user.findUnique({
+    where: { id: session.sub },
+    select: { sex: true },
+  })
+  input.sex = user?.sex === 'male' || user?.sex === 'female' ? user.sex : null
 
   try {
     const summary = await generateStatsSummary(input)

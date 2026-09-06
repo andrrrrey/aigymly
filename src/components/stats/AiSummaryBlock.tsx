@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, Loader2, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { Sparkles, Loader2, RefreshCw, Lock, ChevronRight } from 'lucide-react';
 import { formatMonthTitle, type MonthStats } from '@/lib/statsMonth';
 import { EmptyNote } from './StatsSection';
 
@@ -29,12 +30,13 @@ function buildPayload(stats: MonthStats) {
   };
 }
 
-export function AiSummaryBlock({ stats }: { stats: MonthStats }) {
+export function AiSummaryBlock({ stats, isPro }: { stats: MonthStats; isPro: boolean }) {
   const [state, setState] = useState<State>({ kind: 'idle' });
   // Cache summaries per month so switching back and forth doesn't re-hit the API.
   const cache = useRef<Map<string, string>>(new Map());
 
   const load = async (force = false) => {
+    if (!isPro) return;
     if (stats.workoutCount === 0) return;
     if (!force) {
       const cached = cache.current.get(stats.monthKey);
@@ -79,35 +81,42 @@ export function AiSummaryBlock({ stats }: { stats: MonthStats }) {
 
   // Refetch (or read from cache) whenever the selected month changes.
   useEffect(() => {
-    if (stats.workoutCount === 0) {
+    if (!isPro || stats.workoutCount === 0) {
       setState({ kind: 'idle' });
       return;
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stats.monthKey, stats.workoutCount]);
+  }, [stats.monthKey, stats.workoutCount, isPro]);
 
   return (
     <section className="mt-7">
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-2">
         <h2 className="flex items-center gap-1.5 text-[17px] font-semibold tracking-tight text-ink-900">
           <Sparkles size={17} className="text-brand" />
           Сводка от AI
         </h2>
-        {state.kind === 'done' && (
-          <button
-            type="button"
-            onClick={() => load(true)}
-            className="tappable flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-medium text-ink-400 hover:bg-ink-50"
-            aria-label="Обновить сводку"
-          >
-            <RefreshCw size={13} />
-            Обновить
-          </button>
-        )}
       </div>
 
-      {stats.workoutCount === 0 ? (
+      {!isPro ? (
+        <Link
+          href="/subscribe"
+          className="tappable flex items-center gap-3 rounded-2xl border border-ink-100 bg-ink-50 p-4"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+            <Lock size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14px] font-semibold text-ink-900">
+              Аналитика от AI — по подписке
+            </span>
+            <span className="block text-[12px] leading-snug text-ink-500">
+              Разбор тренировок и персональные рекомендации в Ai Gymly Pro
+            </span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-ink-300" />
+        </Link>
+      ) : stats.workoutCount === 0 ? (
         <EmptyNote>
           В этом месяце ещё нет отмеченных тренировок. Отмечайте подходы галочкой — и AI
           соберёт для вас сводку и рекомендации.
