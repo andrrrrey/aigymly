@@ -14,6 +14,7 @@ type State =
 
 function buildPayload(stats: MonthStats) {
   return {
+    monthKey: stats.monthKey,
     monthTitle: formatMonthTitle(stats.monthKey),
     workoutCount: stats.workoutCount,
     perWeek: stats.perWeek,
@@ -60,6 +61,16 @@ export function AiSummaryBlock({ stats, isPro }: { stats: MonthStats; isPro: boo
           setState({
             kind: 'error',
             message: 'Сводка недоступна: администратор ещё не настроил ключ OpenAI.',
+          });
+        } else if (data?.error === 'QUOTA_EXCEEDED') {
+          setState({
+            kind: 'error',
+            message: 'Лимит обновлений анализа на этот период исчерпан. Новый анализ будет доступен позже.',
+          });
+        } else if (res.status === 429) {
+          setState({
+            kind: 'error',
+            message: 'Слишком часто. Подождите немного и попробуйте снова.',
           });
         } else {
           setState({ kind: 'error', message: 'Не удалось собрать сводку. Попробуйте ещё раз.' });

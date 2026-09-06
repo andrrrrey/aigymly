@@ -63,7 +63,7 @@ export function SubscriptionCard() {
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold">Ai Gymly Pro</div>
-          <div className="text-[12px] text-white/85">Чат с AI и безлимит программ</div>
+          <div className="text-[12px] text-white/85">ИИ-программы и анализ прогресса</div>
         </div>
         <ChevronRight size={18} className="shrink-0 text-white/70" />
       </Link>

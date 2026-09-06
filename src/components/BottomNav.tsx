@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Calendar, Dumbbell, MessageCircle, BarChart3, User } from 'lucide-react';
+import { Calendar, Dumbbell, BarChart3, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TABS = [
   { href: '/', icon: Calendar, label: 'Календарь' },
   { href: '/programs', icon: Dumbbell, label: 'Программы' },
-  { href: '/chat', icon: MessageCircle, label: 'AI чат' },
   { href: '/stats', icon: BarChart3, label: 'Статистика' },
   { href: '/profile', icon: User, label: 'Профиль' },
 ];

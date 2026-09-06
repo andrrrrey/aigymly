@@ -73,6 +73,12 @@ export default function ProgramDetailPage() {
           showToast('Перегенерация недоступна для этой программы');
         } else if (data?.error === 'OPENAI_KEY_MISSING') {
           showToast('Генерация недоступна: не настроен ключ OpenAI');
+        } else if (data?.error === 'SUBSCRIPTION_REQUIRED') {
+          showToast('Перегенерация доступна по подписке Pro');
+        } else if (data?.error === 'QUOTA_EXCEEDED') {
+          showToast('Лимит обновлений программ на этот период исчерпан');
+        } else if (res.status === 429) {
+          showToast('Слишком часто. Подожди немного и попробуй снова');
         } else {
           showToast('Не удалось перегенерировать. Попробуй ещё раз');
         }

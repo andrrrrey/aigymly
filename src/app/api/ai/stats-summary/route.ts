@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
+import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { getEntitlement } from '@/lib/entitlements'
+import { getEntitlement, checkAiQuota } from '@/lib/entitlements'
 import { generateStatsSummary, OpenAIError, type StatsSummaryInput } from '@/lib/openai'
+import { recordAiUsage } from '@/lib/aiUsage'
+import { acquireRateLimit } from '@/lib/rate-limit'
 
 function num(v: unknown, fallback = 0): number {
   const n = typeof v === 'number' ? v : parseFloat(String(v))
@@ -32,6 +35,12 @@ function sanitize(raw: any): StatsSummaryInput {
   }
 }
 
+// Stable hash of the inputs the summary is built from. `sanitize` produces a
+// fixed key order, so JSON.stringify is deterministic enough for a cache key.
+function hashPayload(input: StatsSummaryInput): string {
+  return createHash('sha256').update(JSON.stringify(input)).digest('hex')
+}
+
 export async function POST(req: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
@@ -42,13 +51,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'SUBSCRIPTION_REQUIRED' }, { status: 402 })
   }
 
-  let input: StatsSummaryInput
+  let raw: any
   try {
-    input = sanitize(await req.json())
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
   }
 
+  const input = sanitize(raw)
+  const monthKey = typeof raw?.monthKey === 'string' ? raw.monthKey : ''
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+    return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
+  }
   if (input.workoutCount <= 0) {
     return NextResponse.json({ error: 'NO_DATA' }, { status: 400 })
   }
@@ -60,18 +74,58 @@ export async function POST(req: Request) {
   })
   input.sex = user?.sex === 'male' || user?.sex === 'female' ? user.sex : null
 
+  const payloadHash = hashPayload(input)
+
+  // Persistent cache: unchanged month → serve stored summary, no OpenAI call and
+  // no quota consumed. Page reloads and revisiting past months are free.
+  const cached = await db.aiStatsSummary.findUnique({
+    where: { userId_monthKey: { userId: session.sub, monthKey } },
+  })
+  if (cached && cached.payloadHash === payloadHash) {
+    return NextResponse.json({ summary: cached.summary, cached: true })
+  }
+
+  // A new unique analysis counts against the monthly cap.
+  const quota = await checkAiQuota(session.sub, 'stats', ent.planId)
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: 'QUOTA_EXCEEDED', limit: quota.limit, used: quota.used, resetAt: quota.resetAt },
+      { status: 429 }
+    )
+  }
+
+  const limit = acquireRateLimit(`${session.sub}:stats`)
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: limit.reason === 'in_progress' ? 'REQUEST_IN_PROGRESS' : 'TOO_MANY_REQUESTS' },
+      { status: 429 }
+    )
+  }
+
   try {
-    const summary = await generateStatsSummary(input)
+    const { summary, usage } = await generateStatsSummary(input)
+    await recordAiUsage(session.sub, 'stats', 'success', usage)
+
+    await db.aiStatsSummary.upsert({
+      where: { userId_monthKey: { userId: session.sub, monthKey } },
+      update: { payloadHash, summary, sourceUpdatedAt: new Date() },
+      create: { userId: session.sub, monthKey, payloadHash, summary },
+    })
+
     return NextResponse.json({ summary })
   } catch (err) {
     if (err instanceof OpenAIError) {
       if (err.code === 'OPENAI_KEY_MISSING') {
         return NextResponse.json({ error: err.code }, { status: 503 })
       }
+      await recordAiUsage(session.sub, 'stats', 'error')
       console.error('[stats-summary]', err.code, err.message)
       return NextResponse.json({ error: err.code }, { status: 502 })
     }
+    await recordAiUsage(session.sub, 'stats', 'error')
     console.error('[stats-summary]', err)
     return NextResponse.json({ error: 'SERVER_ERROR' }, { status: 500 })
+  } finally {
+    limit.release()
   }
 }

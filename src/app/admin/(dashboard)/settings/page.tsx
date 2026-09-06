@@ -21,6 +21,8 @@ interface SettingsInfo {
   openaiKeyMasked: string | null;
   openaiKeyFromEnv: boolean;
   model: string;
+  modelPrograms: string;
+  modelStats: string;
   tbank: TbankInfo;
 }
 
@@ -28,6 +30,8 @@ export default function AdminSettingsPage() {
   const [info, setInfo] = useState<SettingsInfo | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('');
+  const [modelPrograms, setModelPrograms] = useState('');
+  const [modelStats, setModelStats] = useState('');
 
   const [tbankKey, setTbankKey] = useState('');
   const [tbankPass, setTbankPass] = useState('');
@@ -46,6 +50,8 @@ export default function AdminSettingsPage() {
         if (data) {
           setInfo(data);
           setModel(data.model);
+          setModelPrograms(data.modelPrograms);
+          setModelStats(data.modelStats);
           setTbankMode(data.tbank.mode);
           setTaxation(data.tbank.taxation);
           setVat(data.tbank.vat);
@@ -68,6 +74,8 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({
           openaiApiKey: apiKey,
           model,
+          modelPrograms,
+          modelStats,
           tbankTerminalKey: tbankKey,
           tbankPassword: tbankPass,
           tbankMode,
@@ -98,7 +106,7 @@ export default function AdminSettingsPage() {
         <section className="rounded-2xl border border-ink-200 bg-white p-5">
           <h2 className="text-[16px] font-semibold text-ink-900">OpenAI</h2>
           <p className="mt-1 text-[13px] text-ink-500">
-            Ключ используется для генерации программ тренировок после опроса.
+            Ключ используется для генерации программ тренировок и анализа статистики.
           </p>
 
           <div className="mt-4 space-y-3">
@@ -125,12 +133,33 @@ export default function AdminSettingsPage() {
             </div>
 
             <AuthInput
-              label="Модель"
+              label="Модель по умолчанию"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               placeholder="gpt-4o"
               autoComplete="off"
             />
+            <div className="grid grid-cols-2 gap-3">
+              <AuthInput
+                label="Модель для программ"
+                value={modelPrograms}
+                onChange={(e) => setModelPrograms(e.target.value)}
+                placeholder="gpt-4o"
+                autoComplete="off"
+              />
+              <AuthInput
+                label="Модель для статистики"
+                value={modelStats}
+                onChange={(e) => setModelStats(e.target.value)}
+                placeholder="gpt-4o"
+                autoComplete="off"
+              />
+            </div>
+            <p className="px-1 text-[12px] text-ink-400">
+              Раздельные модели для генерации программ и анализа статистики. Пусто — используется
+              модель по умолчанию. Перед переходом на дешёвые модели (gpt-4.1-mini / gpt-4o-mini)
+              сравните качество на 30–50 анкетах.
+            </p>
           </div>
         </section>
 

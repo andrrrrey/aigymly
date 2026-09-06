@@ -8,6 +8,10 @@ export const DEFAULT_OPENAI_MODEL = 'gpt-4o'
 export const SETTING_KEYS = {
   openaiApiKey: 'openai_api_key',
   openaiModel: 'openai_model',
+  // Per-feature model routing. Fall back to `openaiModel` / DEFAULT when unset,
+  // so program generation and stats summaries can use different models.
+  openaiModelPrograms: 'openai_model_programs',
+  openaiModelStats: 'openai_model_stats',
   // T-Bank (Tinkoff) internet acquiring.
   tbankTerminalKey: 'tbank_terminal_key',
   tbankPassword: 'tbank_password',
@@ -55,6 +59,20 @@ export async function getOpenAIKey(): Promise<string | null> {
 export async function getOpenAIModel(): Promise<string> {
   const fromDb = await getSetting(SETTING_KEYS.openaiModel)
   return fromDb && fromDb.trim() ? fromDb.trim() : DEFAULT_OPENAI_MODEL
+}
+
+// Model used for program generation. Falls back to the shared model / default.
+export async function getOpenAIModelForPrograms(): Promise<string> {
+  const fromDb = await getSetting(SETTING_KEYS.openaiModelPrograms)
+  if (fromDb && fromDb.trim()) return fromDb.trim()
+  return getOpenAIModel()
+}
+
+// Model used for the monthly stats summary. Falls back to the shared model / default.
+export async function getOpenAIModelForStats(): Promise<string> {
+  const fromDb = await getSetting(SETTING_KEYS.openaiModelStats)
+  if (fromDb && fromDb.trim()) return fromDb.trim()
+  return getOpenAIModel()
 }
 
 export interface TbankConfig {
