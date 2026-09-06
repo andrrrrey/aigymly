@@ -7,6 +7,7 @@ import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BottomNav } from '@/components/BottomNav';
 import { useApp } from '@/store/app';
+import { useAuth } from '@/store/auth';
 import { useToday } from '@/hooks/useToday';
 import { computeExerciseStats } from '@/lib/exerciseStats';
 import {
@@ -29,6 +30,7 @@ import { AiSummaryBlock } from '@/components/stats/AiSummaryBlock';
 
 export default function StatsPage() {
   const { workouts } = useApp();
+  const isPro = useAuth((s) => !!s.user?.isPro);
   const today = useToday();
   const thisMonth = currentMonthKey(today);
 
@@ -88,7 +90,7 @@ export default function StatsPage() {
         </div>
 
         <TonnageBlock stats={stats} />
-        <AiSummaryBlock stats={stats} />
+        <AiSummaryBlock stats={stats} isPro={isPro} />
         <StrengthBlock stats={stats} />
         <MuscleBalanceBlock stats={stats} />
         <LastWorkoutBlock workout={lastWorkout} />

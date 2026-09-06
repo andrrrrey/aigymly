@@ -438,6 +438,7 @@ async function callOpenAI(
 
 export interface StatsSummaryInput {
   monthTitle: string
+  sex?: 'male' | 'female' | null
   workoutCount: number
   perWeek: number
   totalTonnageKg: number
@@ -459,11 +460,13 @@ const STATS_SUMMARY_SYSTEM = `Ты — опытный, доброжелател�
 - Отметь главное: регулярность, динамику нагрузки, прогресс силы (по расчётному максимуму), баланс мышечных групп.
 - Дай 1–2 конкретные рекомендации на следующий месяц.
 - Тон — поддерживающий, по-человечески, без канцелярита и без выдуманных цифр. Используй только предоставленные данные.
+- Учитывай пол пользователя (если указан): гендерную физиологию, типичные акценты и формулировки рекомендаций; согласуй род в обращении к пользователю.
 - Не используй обращения вида «Уважаемый пользователь». Обращайся на «ты».`
 
 function buildStatsSummaryPrompt(s: StatsSummaryInput): string {
   const lines: string[] = []
   lines.push(`Месяц: ${s.monthTitle}`)
+  if (s.sex) lines.push(`Пол: ${s.sex === 'female' ? 'женский' : 'мужской'}`)
   lines.push(`Тренировок за месяц: ${s.workoutCount}`)
   lines.push(`В среднем в неделю: ${s.perWeek.toFixed(1)}`)
   lines.push(`Всего выполненных подходов: ${s.totalSets}`)
