@@ -3,6 +3,7 @@ import './globals.css';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { AuthProvider } from '@/components/AuthProvider';
 import { YandexMetrika } from '@/components/YandexMetrika';
+import { DebugOverlay } from '@/components/DebugOverlay';
 
 export const metadata: Metadata = {
   title: 'Ai Gymly — умный фитнес планер',
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </AuthProvider>
         <ServiceWorkerRegister />
         <YandexMetrika />
+        <DebugOverlay />
       </body>
     </html>
   );
