@@ -5,6 +5,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Workout, Exercise, ExerciseSet, QuestionnaireAnswers } from '@/types';
 import type { ExerciseTemplate } from '@/lib/exercises';
 import { uid } from '@/lib/utils';
+import { getSafeStorage } from '@/lib/safeStorage';
 
 interface AppState {
   workouts: Workout[];
@@ -212,7 +213,7 @@ export const useApp = create<AppState>()(
     }),
     {
       name: 'aigymly-store',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => getSafeStorage()),
       // Exclude workouts from localStorage — they live in the database
       partialize: (state) => ({
         selectedDate: state.selectedDate,
