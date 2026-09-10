@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/build-sw.mjs && prisma generate && next build",
+    "build": "prisma generate && next build",
     "start": "prisma migrate deploy && next start",
     "lint": "next lint",
     "migrate:deploy": "prisma migrate deploy",
-    "deploy": "prisma migrate deploy && node scripts/build-sw.mjs && prisma generate && next build"
+    "deploy": "prisma migrate deploy && prisma generate && next build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
