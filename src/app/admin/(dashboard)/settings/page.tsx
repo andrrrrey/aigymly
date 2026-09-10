@@ -24,6 +24,7 @@ interface SettingsInfo {
   modelPrograms: string;
   modelStats: string;
   tbank: TbankInfo;
+  social: { telegram: string; pinterest: string };
 }
 
 export default function AdminSettingsPage() {
@@ -39,6 +40,9 @@ export default function AdminSettingsPage() {
   const [taxation, setTaxation] = useState('');
   const [vat, setVat] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
+
+  const [telegramUrl, setTelegramUrl] = useState('');
+  const [pinterestUrl, setPinterestUrl] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -56,6 +60,8 @@ export default function AdminSettingsPage() {
           setTaxation(data.tbank.taxation);
           setVat(data.tbank.vat);
           setCompanyEmail(data.tbank.companyEmail);
+          setTelegramUrl(data.social.telegram);
+          setPinterestUrl(data.social.pinterest);
         }
       })
       .catch(() => {});
@@ -82,6 +88,8 @@ export default function AdminSettingsPage() {
           tbankTaxation: taxation,
           tbankVat: vat,
           tbankCompanyEmail: companyEmail,
+          socialTelegramUrl: telegramUrl,
+          socialPinterestUrl: pinterestUrl,
         }),
       });
       if (res.ok) {
@@ -248,6 +256,32 @@ export default function AdminSettingsPage() {
               Значения налогообложения/НДС — как в документации T-Bank (например, taxation:
               usn_income; НДС: none). Используются в фискальном чеке (54-ФЗ).
             </p>
+          </div>
+        </section>
+
+        {/* Social links */}
+        <section className="rounded-2xl border border-ink-200 bg-white p-5">
+          <h2 className="text-[16px] font-semibold text-ink-900">Соцсети</h2>
+          <p className="mt-1 text-[13px] text-ink-500">
+            Ссылки для иконок внизу экрана профиля. Оставьте поле пустым, чтобы вернуть значение по
+            умолчанию.
+          </p>
+
+          <div className="mt-4 space-y-3">
+            <AuthInput
+              label="Telegram"
+              value={telegramUrl}
+              onChange={(e) => setTelegramUrl(e.target.value)}
+              placeholder="https://t.me/aigymly"
+              autoComplete="off"
+            />
+            <AuthInput
+              label="Pinterest"
+              value={pinterestUrl}
+              onChange={(e) => setPinterestUrl(e.target.value)}
+              placeholder="https://ru.pinterest.com/aigymly/"
+              autoComplete="off"
+            />
           </div>
         </section>
 

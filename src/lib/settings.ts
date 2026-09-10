@@ -19,10 +19,16 @@ export const SETTING_KEYS = {
   tbankTaxation: 'tbank_taxation', // e.g. 'usn_income'
   tbankVat: 'tbank_vat', // e.g. 'none'
   tbankCompanyEmail: 'tbank_company_email', // seller contact for the fiscal receipt
+  // Social links shown at the bottom of the profile screen.
+  socialTelegramUrl: 'social_telegram_url',
+  socialPinterestUrl: 'social_pinterest_url',
 } as const
 
 export const DEFAULT_TBANK_TAXATION = 'usn_income'
 export const DEFAULT_TBANK_VAT = 'none'
+
+export const DEFAULT_SOCIAL_TELEGRAM_URL = 'https://t.me/aigymly'
+export const DEFAULT_SOCIAL_PINTEREST_URL = 'https://ru.pinterest.com/aigymly/'
 
 export async function getSetting(key: string): Promise<string | null> {
   const row = await db.setting.findUnique({ where: { key } })
@@ -109,5 +115,20 @@ export async function getTbankConfig(): Promise<TbankConfig> {
     taxation: (taxationDb && taxationDb.trim()) || DEFAULT_TBANK_TAXATION,
     vat: (vatDb && vatDb.trim()) || DEFAULT_TBANK_VAT,
     companyEmail: (companyEmailDb && companyEmailDb.trim()) || null,
+  }
+}
+
+export interface SocialLinks {
+  telegram: string
+  pinterest: string
+}
+
+// Resolves social links, falling back to the app defaults when unset/empty.
+export async function getSocialLinks(): Promise<SocialLinks> {
+  const tg = await getSetting(SETTING_KEYS.socialTelegramUrl)
+  const pin = await getSetting(SETTING_KEYS.socialPinterestUrl)
+  return {
+    telegram: (tg && tg.trim()) || DEFAULT_SOCIAL_TELEGRAM_URL,
+    pinterest: (pin && pin.trim()) || DEFAULT_SOCIAL_PINTEREST_URL,
   }
 }

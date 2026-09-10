@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { BottomNav } from '@/components/BottomNav';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { SubscriptionCard } from '@/components/SubscriptionCard';
+import { SocialLinksBar } from '@/components/SocialLinksBar';
 import { useAuth } from '@/store/auth';
 import { ChevronRight, Settings, LogOut, CheckCircle, AlertCircle, Loader2, Send, Camera } from 'lucide-react';
 
@@ -342,6 +343,8 @@ export default function ProfilePage() {
           <ProfileRow label="Уведомления" />
           <ProfileRow label="Помощь и поддержка" />
         </div>
+
+        <SocialLinksBar />
       </main>
 
       <BottomNav />
