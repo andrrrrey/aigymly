@@ -54,19 +54,33 @@ export function SubscriptionCard() {
 
   if (!sub?.isPro) {
     return (
-      <Link
-        href="/subscribe"
-        className="tappable flex items-center gap-3 rounded-2xl bg-gradient-to-br from-brand to-brand-dark p-4 text-white shadow-elevated"
-      >
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/15">
-          <Sparkles size={20} />
+      <div className="space-y-3">
+        <div className="rounded-2xl border border-ink-100 bg-ink-50/60 p-4">
+          <div className="text-[15px] font-semibold text-ink-900">
+            Базовый — пользуйтесь бесплатно
+          </div>
+          <div className="mt-0.5 text-[13px] leading-relaxed text-ink-500">
+            Ведите тренировки, сохраняйте историю и отслеживайте прогресс
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-semibold">Ai Gymly Pro</div>
-          <div className="text-[12px] text-white/85">ИИ-программы и анализ прогресса</div>
-        </div>
-        <ChevronRight size={18} className="shrink-0 text-white/70" />
-      </Link>
+
+        <Link
+          href="/subscribe"
+          className="tappable flex items-center gap-3 rounded-2xl bg-gradient-to-br from-brand to-brand-dark p-4 text-white shadow-elevated"
+        >
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/15">
+            <Sparkles size={20} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[15px] font-semibold">Ai Gymly Pro</div>
+            <div className="mt-0.5 text-[12px] leading-relaxed text-white/85">
+              ИИ создаёт персональные программы под ваши цели, анализирует тренировки
+              и помогает понимать, как прогрессировать дальше
+            </div>
+          </div>
+          <ChevronRight size={18} className="shrink-0 self-start text-white/70" />
+        </Link>
+      </div>
     );
   }
 
