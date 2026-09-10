@@ -10,6 +10,7 @@ import {
   getOpenAIModelForPrograms,
   getOpenAIModelForStats,
   getTbankConfig,
+  getSocialLinks,
   DEFAULT_TBANK_TAXATION,
   DEFAULT_TBANK_VAT,
 } from '@/lib/settings'
@@ -29,6 +30,7 @@ export async function GET() {
   const modelStats = await getOpenAIModelForStats()
   const hasEnvKey = !!process.env.OPENAI_API_KEY?.trim()
 
+  const social = await getSocialLinks()
   const tbank = await getTbankConfig()
   const tbankKeyDb = await getSecret(SETTING_KEYS.tbankTerminalKey)
   const tbankPassDb = await getSecret(SETTING_KEYS.tbankPassword)
@@ -54,6 +56,10 @@ export async function GET() {
       vat: tbank.vat,
       companyEmail: tbank.companyEmail ?? '',
     },
+    social: {
+      telegram: social.telegram,
+      pinterest: social.pinterest,
+    },
   })
 }
 
@@ -72,6 +78,8 @@ export async function PUT(req: Request) {
     tbankTaxation?: string
     tbankVat?: string
     tbankCompanyEmail?: string
+    socialTelegramUrl?: string
+    socialPinterestUrl?: string
   }
   try {
     body = await req.json()
@@ -110,6 +118,13 @@ export async function PUT(req: Request) {
   }
   if (typeof body.tbankCompanyEmail === 'string') {
     await setSetting(SETTING_KEYS.tbankCompanyEmail, body.tbankCompanyEmail.trim())
+  }
+  // Empty value resets the link to its default (handled by getSocialLinks).
+  if (typeof body.socialTelegramUrl === 'string') {
+    await setSetting(SETTING_KEYS.socialTelegramUrl, body.socialTelegramUrl.trim())
+  }
+  if (typeof body.socialPinterestUrl === 'string') {
+    await setSetting(SETTING_KEYS.socialPinterestUrl, body.socialPinterestUrl.trim())
   }
 
   return NextResponse.json({ ok: true })
