@@ -1,4 +1,10 @@
-const CACHE = 'aigymly-v2';
+// BUILD_ID is stamped on every build by scripts/build-sw.mjs so that each
+// deployment ships a byte-different service worker. That guarantees the
+// browser detects an update, activates the new worker and purges the caches
+// of previous builds — otherwise resident PWAs keep running stale JS chunks
+// (and, historically, stale Server Action ids) forever.
+const BUILD_ID = 'dev';
+const CACHE = `aigymly-${BUILD_ID}`;
 const APP_SHELL = ['/'];
 
 self.addEventListener('install', (event) => {
@@ -8,11 +14,13 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    )
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      )
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -44,7 +52,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: stale-while-revalidate.
+  // Static assets: stale-while-revalidate. The cache is scoped to the current
+  // BUILD_ID and every previous build's cache is deleted on activate, so a
+  // cache hit can only ever be an asset from the running build — no
+  // cross-deploy staleness.
   event.respondWith(
     caches.match(request).then((cached) => {
       const network = fetch(request)
