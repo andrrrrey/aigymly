@@ -24,9 +24,11 @@ interface SubStatus {
 }
 
 const PRO_FEATURES = [
-  'ИИ-программы тренировок',
-  'ИИ-анализ прогресса после каждой тренировки',
-  'Повторный просмотр программ и анализов',
+  'Программа тренировок с учётом ваших целей',
+  'ИИ анализирует результаты каждой тренировки',
+  'ИИ анализирует динамику ваших тренировок за выбранный период',
+  'Подсказывает, как корректировать нагрузку дальше',
+  'История программ и рекомендаций всегда доступна',
 ];
 
 export default function SubscribePage() {
@@ -88,6 +90,15 @@ export default function SubscribePage() {
     }
   };
 
+  // Best value = lowest real per-month price across plans, highlighted with a badge.
+  const bestPlanId =
+    plans.length > 1
+      ? plans.reduce((best, p) => {
+          const perMonth = (n: Plan) => n.priceKopecks / Math.max(1, Math.round(n.periodDays / 30));
+          return perMonth(p) < perMonth(best) ? p : best;
+        }).id
+      : null;
+
   return (
     <>
       <header
@@ -112,14 +123,18 @@ export default function SubscribePage() {
             <Sparkles size={20} />
             <h2 className="text-[18px] font-semibold tracking-tight">Ai Gymly Pro</h2>
           </div>
-          <ul className="mt-3 space-y-1.5">
+          <ul className="mt-3 space-y-2">
             {PRO_FEATURES.map((f) => (
-              <li key={f} className="flex items-center gap-2 text-[13px] text-white/90">
-                <Check size={15} strokeWidth={3} />
-                {f}
+              <li key={f} className="flex items-start gap-2 text-[13px] leading-snug text-white/90">
+                <Check size={15} strokeWidth={3} className="mt-0.5 shrink-0" />
+                <span>{f}</span>
               </li>
             ))}
           </ul>
+          <div className="mt-3 flex items-start gap-2 rounded-xl bg-white/15 px-3 py-2.5 text-[13px] leading-snug font-medium">
+            <Check size={15} strokeWidth={3} className="mt-0.5 shrink-0" />
+            <span>Новые функции Pro становятся доступны в рамках подписки</span>
+          </div>
         </div>
 
         {sub?.isPro && (
@@ -150,21 +165,32 @@ export default function SubscribePage() {
           <div className="space-y-2.5">
             {plans.map((p) => {
               const rub = Math.round(p.priceKopecks / 100);
-              const perMonth =
-                p.periodDays >= 60
-                  ? Math.round(p.priceKopecks / 100 / (p.periodDays / 30))
-                  : null;
+              // Number of whole months the plan covers (30-day months), so the
+              // per-month figure divides the price by the real month count
+              // instead of the raw day ratio (e.g. 4990 ₽ / 12, not / 12.17).
+              const months = Math.max(1, Math.round(p.periodDays / 30));
+              const perMonth = months > 1 ? Math.round(rub / months) : null;
+              const isBest = p.id === bestPlanId;
               return (
                 <button
                   key={p.id}
                   onClick={() => subscribe(p.id)}
                   disabled={busyPlan !== null}
-                  className="tappable flex w-full items-center gap-3 rounded-2xl border border-ink-200 bg-white p-4 text-left disabled:opacity-60"
+                  className={`tappable flex w-full items-center gap-3 rounded-2xl border bg-white p-4 text-left disabled:opacity-60 ${
+                    isBest ? 'border-brand ring-1 ring-brand/30' : 'border-ink-200'
+                  }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="text-[15px] font-semibold text-ink-900">{p.name}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[15px] font-semibold text-ink-900">{p.name}</span>
+                      {isBest && (
+                        <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">
+                          Выгоднее всего
+                        </span>
+                      )}
+                    </div>
                     {perMonth && (
-                      <div className="text-[12px] text-ink-400">≈ {formatNumRu(perMonth)} ₽ / мес</div>
+                      <div className="mt-0.5 text-[12px] text-ink-400">≈ {formatNumRu(perMonth)} ₽ / мес</div>
                     )}
                   </div>
                   <div className="shrink-0 text-right">
@@ -182,9 +208,17 @@ export default function SubscribePage() {
         {error && <p className="mt-4 text-center text-[13px] text-marker-red">{error}</p>}
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-ink-400">
-          Оплата картой через T-Bank. Подписка продлевается автоматически; отключить
-          автопродление можно в профиле.
+          Оплата картой через T-Bank. Автопродление включается автоматически и
+          отключается тумблером в профиле.
         </p>
+
+        <div className="mt-5 border-t border-ink-50 pt-4 text-[11px] leading-relaxed text-ink-300">
+          <div>В подписке Pro:</div>
+          <ul className="mt-1 space-y-0.5">
+            <li>— до 4 генераций или корректировок программ</li>
+            <li>— ИИ-анализ прогресса после каждой тренировки — до 31 раза за 30 дней</li>
+          </ul>
+        </div>
       </main>
     </>
   );
