@@ -24,6 +24,7 @@ model User {
   payments      Payment[]
   aiUsage       AiUsage[]
   aiStatsSummaries AiStatsSummary[]
+  aiMonthlyReports AiMonthlyReport[]
 }
 
 model Workout {
@@ -175,6 +176,24 @@ model AiStatsSummary {
   sourceUpdatedAt DateTime @default(now())
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@unique([userId, monthKey])
+}
+
+// Persistent archive of the full monthly AI report shown in the stats calendar.
+// Keyed by user and month; `payloadHash` is a hash of the aggregated metrics the
+// report was built from. Past months never change, so once a month's report is
+// generated it is served from here forever — it is a frozen archive, not a cache
+// that regenerates. `report` holds the normalized 5-block report as a JSON string.
+model AiMonthlyReport {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthKey    String
+  payloadHash String
+  report      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([userId, monthKey])
 }

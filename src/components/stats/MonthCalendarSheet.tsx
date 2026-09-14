@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   addDays,
   endOfMonth,
@@ -12,11 +13,18 @@ import {
   startOfWeek,
 } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { ArrowRight, Brain, ChevronRight, Lock, X } from 'lucide-react';
 import { DayCell, WEEKDAYS } from '@/components/calendar/DayCell';
 import { useToday } from '@/hooks/useToday';
-import { monthStartDate, type DateKey, type MonthKey } from '@/lib/statsMonth';
+import {
+  formatMonthTitle,
+  monthStartDate,
+  type DateKey,
+  type MonthKey,
+  type MonthReportInput,
+} from '@/lib/statsMonth';
 import { MonthSwitcher } from './MonthSwitcher';
+import { MonthlyReportSheet } from './MonthlyReportSheet';
 
 // Full-screen month overview for the stats screen. Deliberately read-only and
 // store-free: it never touches `selectedDate`, so browsing months here cannot
@@ -31,6 +39,9 @@ export function MonthCalendarSheet({
   canNext,
   onPrev,
   onNext,
+  isPro,
+  reportMonths,
+  buildReportPayload,
 }: {
   open: boolean;
   onClose: () => void;
@@ -41,9 +52,15 @@ export function MonthCalendarSheet({
   canNext: boolean;
   onPrev: () => void;
   onNext: () => void;
+  isPro: boolean;
+  // All past months with an available AI report, newest first. Independent of
+  // the browsed month — this is a progress archive, not a per-month view.
+  reportMonths: MonthKey[];
+  buildReportPayload: (monthKey: MonthKey) => MonthReportInput;
 }) {
   const today = useToday();
   const monthStart = monthStartDate(monthKey);
+  const [reportMonth, setReportMonth] = useState<MonthKey | null>(null);
 
   const weeks = useMemo(() => {
     const start = startOfWeek(startOfMonth(monthStart), { weekStartsOn: 1 });
@@ -127,15 +144,72 @@ export function MonthCalendarSheet({
               ))}
             </div>
 
-            <div
-              className="pt-5 text-center text-[13px] text-ink-500"
-              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
-            >
+            <div className="pb-5 pt-5 text-center text-[13px] text-ink-500">
               {workoutCount === 0
                 ? 'Тренировок в этом месяце не было'
                 : `Тренировок в этом месяце: ${workoutCount}`}
             </div>
+
+            {/* AI-итоги: архив прогресса. Список не зависит от пролистывания
+                календаря — он всегда показывает все доступные отчёты. */}
+            <div
+              className="border-t border-dashed border-ink-200 pt-5"
+              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
+            >
+              <h3 className="mb-3 flex items-center gap-1.5 text-[15px] font-semibold tracking-tight text-ink-900">
+                <Brain size={16} className="text-brand" />
+                AI-итоги
+              </h3>
+
+              {!isPro ? (
+                <Link
+                  href="/subscribe"
+                  className="tappable flex items-center gap-3 rounded-2xl border border-ink-100 bg-ink-50 p-4"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+                    <Lock size={18} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-semibold text-ink-900">
+                      AI-итоги месяца — по подписке
+                    </span>
+                    <span className="block text-[12px] leading-snug text-ink-500">
+                      Ежемесячный разбор прогресса в Ai Gymly Pro
+                    </span>
+                  </span>
+                  <ChevronRight size={18} className="shrink-0 text-ink-300" />
+                </Link>
+              ) : reportMonths.length === 0 ? (
+                <p className="rounded-2xl bg-ink-50 p-4 text-[13px] leading-snug text-ink-500">
+                  Итоги появятся, когда наберётся месяц с тремя и более тренировками.
+                  Отмечайте подходы галочкой — и AI подведёт итоги месяца.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {reportMonths.map((mk) => (
+                    <button
+                      key={mk}
+                      type="button"
+                      onClick={() => setReportMonth(mk)}
+                      className="tappable flex w-full items-center gap-3 rounded-2xl border border-ink-100 bg-ink-50 px-4 py-3.5 text-left"
+                    >
+                      <span className="min-w-0 flex-1 text-[14px] font-medium text-ink-900">
+                        AI итоги • {formatMonthTitle(mk)}
+                      </span>
+                      <ArrowRight size={18} className="shrink-0 text-ink-400" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          <MonthlyReportSheet
+            open={reportMonth !== null}
+            monthKey={reportMonth}
+            onClose={() => setReportMonth(null)}
+            buildPayload={buildReportPayload}
+          />
         </motion.div>
       )}
     </AnimatePresence>

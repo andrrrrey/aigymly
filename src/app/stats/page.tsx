@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -11,11 +11,13 @@ import { useAuth } from '@/store/auth';
 import { useToday } from '@/hooks/useToday';
 import { computeExerciseStats } from '@/lib/exerciseStats';
 import {
+  computeMonthReportInput,
   computeMonthStats,
   computeTrainingMarkers,
   currentMonthKey,
   findLastTrainingWorkout,
   listMonthKeysWithData,
+  listReportMonthKeys,
   shiftMonthKey,
 } from '@/lib/statsMonth';
 import { pluralRu } from '@/lib/utils';
@@ -48,6 +50,14 @@ export default function StatsPage() {
     [workouts, monthKey]
   );
   const exerciseStats = useMemo(() => computeExerciseStats(workouts), [workouts]);
+
+  // AI report archive: past months with enough data, newest first. Independent
+  // of the browsed month. The payload for a tapped month is computed on demand.
+  const reportMonths = useMemo(() => listReportMonthKeys(workouts, today), [workouts, today]);
+  const buildReportPayload = useCallback(
+    (mk: string) => computeMonthReportInput(workouts, mk),
+    [workouts]
+  );
 
   // Never arrow past the first month that holds data, or into the future —
   // planned workouts are deliberately excluded, so future months are always empty.
@@ -144,6 +154,9 @@ export default function StatsPage() {
         canNext={canNext}
         onPrev={goPrev}
         onNext={goNext}
+        isPro={isPro}
+        reportMonths={reportMonths}
+        buildReportPayload={buildReportPayload}
       />
     </>
   );
