@@ -1,4 +1,4 @@
-import { format, getDaysInMonth } from 'date-fns';
+import { differenceInCalendarDays, format, getDaysInMonth, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import type { Workout } from '@/types';
 
@@ -284,4 +284,220 @@ export function workoutTonnage(workout: Workout): number {
     .filter((ex) => ex.kind === 'strength')
     .flatMap((ex) => (ex.sets ?? []).filter((s) => s.done))
     .reduce((sum, s) => sum + s.weightKg * s.reps, 0);
+}
+
+// ── Monthly AI report ──────────────────────────────────────────────────────
+//
+// The archived monthly report needs richer, cross-month figures than the stats
+// feed (records against all-time bests, streaks, month-over-month deltas). These
+// helpers build on `computeMonthStats` and one extra pass over the full history,
+// then ship the result to the AI report endpoint — mirroring how AiSummaryBlock
+// already sends computed stats rather than raw workouts.
+
+/** Below this a month is too thin to be worth an AI report (spec: ≥ 3). */
+export const REPORT_MIN_WORKOUTS = 3;
+
+// The normalized 5-block report the AI produces. Client-safe so both the server
+// generator and the report sheet share one shape. Stored as JSON in
+// AiMonthlyReport.report.
+export interface MonthlyReport {
+  mainConclusion: string;
+  keyFigures: { label: string; value: string; note: string }[];
+  whatWorked: string[];
+  needsAttention: string[];
+  recommendations: string[];
+  forecast: string;
+}
+
+export type TonnageTrend = 'up' | 'down' | 'flat';
+
+export interface MonthReportInput {
+  monthKey: MonthKey;
+  monthTitle: string;
+  daysInMonth: number;
+  // Regularity
+  workoutCount: number;
+  perWeek: number;
+  longestStreak: number; // most consecutive training days
+  longestGap: number; // most rest days between two training days
+  // Load
+  totalTonnageKg: number;
+  avgTonnageKg: number;
+  maxTonnageKg: number;
+  minTonnageKg: number;
+  tonnageTrend: TonnageTrend; // first vs last training day of the month
+  totalSets: number;
+  // Records (only counted against an existing all-time baseline)
+  oneRmRecordCount: number;
+  tonnageRecord: boolean;
+  // Strength
+  strengthTop: {
+    name: string;
+    currentOneRm: number;
+    deltaKg: number | null;
+    deltaPct: number | null;
+  }[];
+  strengthStagnant: string[]; // exercises with zero/negative 1RM progress
+  // Balance
+  balance: { group: string; percent: number }[];
+  dominantGroup: { group: string; percent: number } | null;
+  laggingGroup: { group: string; percent: number } | null;
+  balanceRatio: number | null; // dominant % ÷ lagging %
+  // Month-over-month
+  prevWorkoutCount: number | null;
+  workoutCountDelta: number | null;
+  tonnageDeltaPct: number | null;
+}
+
+function computeStreakAndGap(days: TrainingDay[]): { streak: number; gap: number } {
+  if (days.length === 0) return { streak: 0, gap: 0 };
+  let streak = 1;
+  let best = 1;
+  let gap = 0;
+  for (let i = 1; i < days.length; i++) {
+    const diff = differenceInCalendarDays(parseISO(days[i].date), parseISO(days[i - 1].date));
+    if (diff === 1) {
+      streak += 1;
+      if (streak > best) best = streak;
+    } else {
+      streak = 1;
+      if (diff - 1 > gap) gap = diff - 1;
+    }
+  }
+  return { streak: best, gap };
+}
+
+/**
+ * Everything the AI needs to write a month's report. Pure — safe to run on the
+ * client (where the store already holds the history) or on the server.
+ */
+export function computeMonthReportInput(
+  workouts: Workout[],
+  monthKey: MonthKey
+): MonthReportInput {
+  const base = computeMonthStats(workouts, monthKey);
+  const prev = computeMonthStats(workouts, shiftMonthKey(monthKey, -1));
+  const prefix = `${monthKey}-`;
+
+  const { streak, gap } = computeStreakAndGap(base.days);
+
+  const minTonnageKg =
+    base.days.length > 0 ? Math.min(...base.days.map((d) => d.tonnageKg)) : 0;
+
+  // Trend: first vs last training day of the month (5% dead-band).
+  let tonnageTrend: TonnageTrend = 'flat';
+  if (base.days.length >= 2) {
+    const first = base.days[0].tonnageKg;
+    const last = base.days[base.days.length - 1].tonnageKg;
+    if (first > 0) {
+      if (last > first * 1.05) tonnageTrend = 'up';
+      else if (last < first * 0.95) tonnageTrend = 'down';
+    }
+  }
+
+  // Records: one extra pass to find each exercise's best 1RM before the month
+  // and the peak workout tonnage before the month, so month peaks can be judged
+  // against an all-time baseline (not just the month itself).
+  const beforeBest = new Map<string, number>();
+  const monthBest = new Map<string, number>();
+  let priorMaxWorkoutTonnage = 0;
+  for (const w of workouts) {
+    const inMonth = w.date.startsWith(prefix);
+    const beforeMonth = w.date < prefix;
+    if (!inMonth && !beforeMonth) continue; // future — ignore
+
+    if (beforeMonth) {
+      const t = workoutTonnage(w);
+      if (t > priorMaxWorkoutTonnage) priorMaxWorkoutTonnage = t;
+    }
+
+    for (const ex of w.exercises) {
+      if (ex.kind !== 'strength') continue;
+      const done = (ex.sets ?? []).filter((s) => s.done);
+      if (done.length === 0) continue;
+      let best = 0;
+      for (const s of done) best = Math.max(best, estimateOneRm(s.weightKg, s.reps));
+      if (best <= 0) continue;
+      const target = inMonth ? monthBest : beforeBest;
+      target.set(ex.name, Math.max(target.get(ex.name) ?? 0, best));
+    }
+  }
+
+  let oneRmRecordCount = 0;
+  for (const [name, best] of monthBest) {
+    const prior = beforeBest.get(name);
+    if (prior !== undefined && best > prior + 0.01) oneRmRecordCount += 1;
+  }
+  const tonnageRecord = priorMaxWorkoutTonnage > 0 && base.maxTonnageKg > priorMaxWorkoutTonnage;
+
+  const dominantGroup = base.balance[0] ?? null;
+  const laggingGroup = base.balance.length > 0 ? base.balance[base.balance.length - 1] : null;
+  const balanceRatio =
+    dominantGroup && laggingGroup && laggingGroup.percent > 0
+      ? dominantGroup.percent / laggingGroup.percent
+      : null;
+
+  const hasPrev = prev.workoutCount > 0;
+
+  return {
+    monthKey,
+    monthTitle: formatMonthTitle(monthKey),
+    daysInMonth: getDaysInMonth(monthStartDate(monthKey)),
+    workoutCount: base.workoutCount,
+    perWeek: base.perWeek,
+    longestStreak: streak,
+    longestGap: gap,
+    totalTonnageKg: base.totalTonnageKg,
+    avgTonnageKg: base.avgTonnageKg,
+    maxTonnageKg: base.maxTonnageKg,
+    minTonnageKg,
+    tonnageTrend,
+    totalSets: base.totalSets,
+    oneRmRecordCount,
+    tonnageRecord,
+    strengthTop: base.strength.slice(0, 5).map((e) => ({
+      name: e.name,
+      currentOneRm: e.currentOneRm,
+      deltaKg: e.deltaKg,
+      deltaPct: e.deltaPct,
+    })),
+    strengthStagnant: base.strength
+      .filter((e) => e.deltaKg !== null && e.deltaKg <= 0)
+      .map((e) => e.name),
+    balance: base.balance.map((g) => ({ group: g.group, percent: g.percent })),
+    dominantGroup: dominantGroup ? { group: dominantGroup.group, percent: dominantGroup.percent } : null,
+    laggingGroup: laggingGroup ? { group: laggingGroup.group, percent: laggingGroup.percent } : null,
+    balanceRatio,
+    prevWorkoutCount: hasPrev ? prev.workoutCount : null,
+    workoutCountDelta: hasPrev ? base.workoutCount - prev.workoutCount : null,
+    tonnageDeltaPct:
+      hasPrev && prev.totalTonnageKg > 0
+        ? (base.totalTonnageKg / prev.totalTonnageKg - 1) * 100
+        : null,
+  };
+}
+
+/**
+ * Past months (strictly before the current one) that qualify for an archived
+ * AI report — at least REPORT_MIN_WORKOUTS training days. Newest first, so the
+ * calendar archive lists them the way the spec describes.
+ */
+export function listReportMonthKeys(workouts: Workout[], today: Date): MonthKey[] {
+  const thisMonth = currentMonthKey(today);
+  const daysByMonth = new Map<MonthKey, Set<DateKey>>();
+  for (const w of workouts) {
+    if (!isTrainingWorkout(w)) continue;
+    const mk = monthKeyOf(w.date);
+    if (mk >= thisMonth) continue; // only completed months
+    let set = daysByMonth.get(mk);
+    if (!set) {
+      set = new Set();
+      daysByMonth.set(mk, set);
+    }
+    set.add(w.date);
+  }
+  return Array.from(daysByMonth.entries())
+    .filter(([, set]) => set.size >= REPORT_MIN_WORKOUTS)
+    .map(([mk]) => mk)
+    .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
 }

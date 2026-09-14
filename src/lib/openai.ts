@@ -14,6 +14,7 @@ import type {
   ProgramDay,
   QuestionnaireAnswers,
 } from '@/types'
+import type { MonthReportInput, MonthlyReport } from '@/lib/statsMonth'
 
 export type OpenAIErrorCode =
   | 'OPENAI_KEY_MISSING'
@@ -666,6 +667,250 @@ export async function generateProgram(
     } catch (err) {
       lastErr = err
       // Only retry on bad output; rethrow hard failures immediately.
+      if (err instanceof OpenAIError && err.code === 'OPENAI_BAD_OUTPUT') continue
+      throw err
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new OpenAIError('OPENAI_BAD_OUTPUT')
+}
+
+// ── Monthly report (the archived «AI-итоги» card in the stats calendar) ─────
+
+// The user's sex comes from their account (trusted), not the client payload,
+// so it is layered on top of the computed report metrics here.
+export type MonthlyReportInput = MonthReportInput & { sex?: 'male' | 'female' | null }
+
+export type { MonthlyReport }
+
+const MONTHLY_REPORT_SYSTEM = `Ты — опытный, доброжелательный персональный тренер по силовым тренировкам. На основе месячной статистики пользователя составь развёрнутый, но не перегруженный отчёт-итог за месяц на русском языке.
+
+Отчёт состоит РОВНО из 5 смысловых блоков:
+1. Главный вывод — 1–2 предложения о самом важном за месяц.
+2. Ключевые цифры с анализом — не просто числа, а связь между ними (например: тренировок стало больше, но средняя нагрузка упала — значит, добавились лёгкие тренировки).
+3. Что сработало и что требует внимания.
+4. Конкретные рекомендации на следующий месяц (с цифрами, где уместно).
+5. Прогноз — что будет, если следовать рекомендациям.
+
+Сначала определи сценарий месяца и выбери акцент:
+- Идеальный месяц (нагрузка заметно выросла, высокая частота, баланс в норме, есть рекорды) → похвала и «сохранить темп».
+- Прогресс замедляется (нагрузка выросла слабо, частота упала) → назови причину и что изменить.
+- Застой (нагрузка почти без изменений, мало рекордов) → предложи сменить программу.
+- Спад (нагрузка снизилась) → поддержка и восстановление.
+- Дисбаланс (коэффициент баланса > 3) → предупреждение и упражнения на отстающую группу.
+- Возвращение (первый полноценный месяц после перерыва) → похвала за возвращение.
+
+Требования:
+- Используй ТОЛЬКО предоставленные цифры. Ничего не выдумывай. Если данных для блока мало — будь короче, но блок оставь.
+- Тон — поддерживающий, по-человечески, без канцелярита. Обращайся на «ты», без «уважаемый пользователь».
+- Учитывай пол пользователя (если указан): согласуй род и акценты рекомендаций.
+- Никакого markdown, никаких заголовков внутри значений.
+
+Верни СТРОГО валидный JSON ровно такой структуры, без пояснений и markdown:
+{
+  "mainConclusion": "string — главный вывод, 1–2 предложения",
+  "keyFigures": [
+    { "label": "string — показатель, напр. 'Тренировок'", "value": "string — значение, напр. '12'", "note": "string — короткий анализ, напр. '+2 к прошлому месяцу'" }
+  ],
+  "whatWorked": ["string — что сработало"],
+  "needsAttention": ["string — что требует внимания"],
+  "recommendations": ["string — конкретная рекомендация на следующий месяц"],
+  "forecast": "string — прогноз при следовании рекомендациям, 1–3 предложения"
+}`
+
+function trend(t: MonthlyReportInput['tonnageTrend']): string {
+  return t === 'up' ? 'рост' : t === 'down' ? 'спад' : 'стабильно'
+}
+
+function buildMonthlyReportPrompt(s: MonthlyReportInput): string {
+  const lines: string[] = []
+  lines.push(`Месяц: ${s.monthTitle}`)
+  if (s.sex) lines.push(`Пол пользователя: ${s.sex === 'female' ? 'женский' : 'мужской'}`)
+
+  lines.push('')
+  lines.push('РЕГУЛЯРНОСТЬ:')
+  lines.push(`- Тренировок за месяц: ${s.workoutCount}`)
+  lines.push(`- В среднем в неделю: ${s.perWeek.toFixed(1)}`)
+  lines.push(`- Самая длинная серия подряд: ${s.longestStreak} дн.`)
+  lines.push(`- Самый длинный пропуск: ${s.longestGap} дн.`)
+  if (s.prevWorkoutCount !== null && s.workoutCountDelta !== null) {
+    const d = s.workoutCountDelta
+    lines.push(
+      `- Прошлый месяц: ${s.prevWorkoutCount} тренировок (изменение ${d >= 0 ? '+' : ''}${d})`
+    )
+  } else {
+    lines.push('- За прошлый месяц данных нет (возможно, возвращение после перерыва)')
+  }
+
+  lines.push('')
+  lines.push('НАГРУЗКА:')
+  lines.push(`- Общая нагрузка за месяц: ${Math.round(s.totalTonnageKg)} кг`)
+  lines.push(`- Средняя за тренировку: ${Math.round(s.avgTonnageKg)} кг`)
+  lines.push(`- Максимальная за тренировку: ${Math.round(s.maxTonnageKg)} кг`)
+  lines.push(`- Минимальная за тренировку: ${Math.round(s.minTonnageKg)} кг`)
+  lines.push(`- Тренд нагрузки (первая vs последняя тренировка): ${trend(s.tonnageTrend)}`)
+  lines.push(`- Всего выполненных подходов: ${s.totalSets}`)
+  if (s.tonnageDeltaPct !== null) {
+    lines.push(
+      `- Изменение общей нагрузки к прошлому месяцу: ${s.tonnageDeltaPct >= 0 ? '+' : ''}${s.tonnageDeltaPct.toFixed(0)}%`
+    )
+  }
+
+  lines.push('')
+  lines.push('РЕКОРДЫ:')
+  lines.push(`- Упражнений с новым личным максимумом 1ПМ: ${s.oneRmRecordCount}`)
+  lines.push(`- Рекорд по нагрузке за тренировку: ${s.tonnageRecord ? 'да' : 'нет'}`)
+
+  if (s.strengthTop.length) {
+    lines.push('')
+    lines.push('ПРОГРЕСС СИЛЫ (расчётный 1ПМ, лучшие упражнения):')
+    for (const ex of s.strengthTop) {
+      const delta =
+        ex.deltaKg === null
+          ? 'новое упражнение в этом месяце'
+          : `${ex.deltaKg >= 0 ? '+' : ''}${ex.deltaKg.toFixed(1)} кг${
+              ex.deltaPct !== null ? ` (${ex.deltaPct >= 0 ? '+' : ''}${ex.deltaPct.toFixed(0)}%)` : ''
+            }`
+      lines.push(`- ${ex.name}: 1ПМ ${Math.round(ex.currentOneRm)} кг, изменение ${delta}`)
+    }
+  }
+  if (s.strengthStagnant.length) {
+    lines.push(`Без прогресса (застой): ${s.strengthStagnant.join(', ')}`)
+  }
+
+  if (s.balance.length) {
+    lines.push('')
+    lines.push('БАЛАНС МЫШЕЧНЫХ ГРУПП (доля подходов):')
+    for (const g of s.balance) lines.push(`- ${g.group}: ${Math.round(g.percent)}%`)
+    if (s.dominantGroup && s.laggingGroup && s.balanceRatio !== null) {
+      lines.push(
+        `Доминирует: ${s.dominantGroup.group} (${Math.round(s.dominantGroup.percent)}%), отстаёт: ${s.laggingGroup.group} (${Math.round(s.laggingGroup.percent)}%), коэффициент баланса: ${s.balanceRatio.toFixed(1)}`
+      )
+    }
+  }
+
+  return lines.join('\n')
+}
+
+// Upper bound on the report output (five short blocks).
+const MONTHLY_REPORT_MAX_TOKENS = 1500
+
+async function callOpenAIJson(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number
+): Promise<{ content: string; usage: AiUsageInfo }> {
+  let res: Response
+  try {
+    res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.6,
+        max_tokens: maxTokens,
+      }),
+    })
+  } catch (err) {
+    throw new OpenAIError('OPENAI_REQUEST_FAILED', String(err))
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new OpenAIError('OPENAI_REQUEST_FAILED', `OpenAI ${res.status}: ${text.slice(0, 500)}`)
+  }
+
+  const json = await res.json().catch(() => null)
+  const content = json?.choices?.[0]?.message?.content
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new OpenAIError('OPENAI_BAD_OUTPUT')
+  }
+  return { content, usage: parseUsage(model, json?.usage) }
+}
+
+function strList(v: unknown, maxItems: number): string[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .map((x) => str(x).slice(0, 400))
+    .filter(Boolean)
+    .slice(0, maxItems)
+}
+
+function normalizeMonthlyReport(raw: any): MonthlyReport {
+  if (!raw || typeof raw !== 'object') throw new OpenAIError('OPENAI_BAD_OUTPUT')
+
+  const keyFigures = (Array.isArray(raw.keyFigures) ? raw.keyFigures : [])
+    .slice(0, 8)
+    .map((k: any) => ({
+      label: str(k?.label).slice(0, 80),
+      value: str(k?.value).slice(0, 80),
+      note: str(k?.note).slice(0, 200),
+    }))
+    .filter((k: MonthlyReport['keyFigures'][number]) => k.label || k.value)
+
+  const report: MonthlyReport = {
+    mainConclusion: str(raw.mainConclusion).slice(0, 600),
+    keyFigures,
+    whatWorked: strList(raw.whatWorked, 6),
+    needsAttention: strList(raw.needsAttention, 6),
+    recommendations: strList(raw.recommendations, 8),
+    forecast: str(raw.forecast).slice(0, 600),
+  }
+
+  // A report with nothing substantive is treated as a bad generation.
+  if (
+    !report.mainConclusion &&
+    report.keyFigures.length === 0 &&
+    report.whatWorked.length === 0 &&
+    report.recommendations.length === 0
+  ) {
+    throw new OpenAIError('OPENAI_BAD_OUTPUT')
+  }
+  return report
+}
+
+export interface MonthlyReportResult {
+  report: MonthlyReport
+  usage: AiUsageInfo
+}
+
+export async function generateMonthlyReport(
+  input: MonthlyReportInput
+): Promise<MonthlyReportResult> {
+  const apiKey = await getOpenAIKey()
+  if (!apiKey) throw new OpenAIError('OPENAI_KEY_MISSING')
+  const model = await getOpenAIModelForStats()
+  const userPrompt = buildMonthlyReportPrompt(input)
+
+  // One retry on malformed JSON, mirroring generateProgram.
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { content, usage } = await callOpenAIJson(
+        apiKey,
+        model,
+        MONTHLY_REPORT_SYSTEM,
+        userPrompt,
+        MONTHLY_REPORT_MAX_TOKENS
+      )
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(content)
+      } catch {
+        throw new OpenAIError('OPENAI_BAD_OUTPUT')
+      }
+      return { report: normalizeMonthlyReport(parsed), usage }
+    } catch (err) {
+      lastErr = err
       if (err instanceof OpenAIError && err.code === 'OPENAI_BAD_OUTPUT') continue
       throw err
     }
