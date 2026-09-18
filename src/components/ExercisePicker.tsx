@@ -3,7 +3,14 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Plus, ChevronLeft } from 'lucide-react';
-import { EXERCISE_LIBRARY, MUSCLE_GROUPS_RU, createExerciseFromTemplate, type ExerciseTemplate } from '@/lib/exercises';
+import {
+  EXERCISE_LIBRARY,
+  MUSCLE_GROUPS_RU,
+  createExerciseFromTemplate,
+  deriveCustomExercisesFromWorkouts,
+  mergeCustomExercises,
+  type ExerciseTemplate,
+} from '@/lib/exercises';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { MuscleGroupIcon } from './icons/MuscleGroupIcon';
@@ -17,7 +24,7 @@ interface Props {
 }
 
 export function ExercisePicker({ open, onClose, onPick }: Props) {
-  const { customExercises, addCustomExercise } = useApp();
+  const { customExercises, addCustomExercise, workouts } = useApp();
   const gender = useGender();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<string>('Все');
@@ -27,8 +34,17 @@ export function ExercisePicker({ open, onClose, onPick }: Props) {
   const [newKind, setNewKind] = useState<'strength' | 'cardio'>('strength');
 
   const allExercises = useMemo(
-    () => [...EXERCISE_LIBRARY, ...customExercises],
-    [customExercises]
+    () => [
+      ...EXERCISE_LIBRARY,
+      // Locally stored custom exercises, plus any the user has logged in a
+      // saved workout — so custom exercises survive a cleared/blocked
+      // localStorage or a switch of device, where the store alone would be empty.
+      ...mergeCustomExercises(
+        customExercises,
+        deriveCustomExercisesFromWorkouts(workouts)
+      ),
+    ],
+    [customExercises, workouts]
   );
 
   const filtered = useMemo(() => {

@@ -1,4 +1,4 @@
-import type { Exercise } from '@/types';
+import type { Exercise, Workout } from '@/types';
 
 export interface ExerciseTemplate {
   id: string;
@@ -93,4 +93,75 @@ export function createExerciseFromTemplate(template: ExerciseTemplate): Exercise
       ? { sets: [{ id: `set-${Date.now()}`, reps: 10, weightKg: 0 }] }
       : { durationSec: 600 }),
   };
+}
+
+// Russian names of every built-in library exercise, for distinguishing custom
+// exercises (which the user typed themselves) from library ones.
+const LIBRARY_NAMES_RU = new Set(
+  EXERCISE_LIBRARY.map((t) => t.nameRu.trim().toLowerCase())
+);
+
+/**
+ * Reconstruct custom-exercise templates from the exercises embedded in saved
+ * workouts.
+ *
+ * Custom exercises live only in browser localStorage, so they disappear from
+ * the picker on another device, after storage is cleared, or in in-app
+ * browsers where Web Storage is blocked and we fall back to in-memory storage.
+ * The workouts that used them are stored server-side and still show those
+ * exercises, though — so we derive the templates back from workout history,
+ * making every exercise the user has ever logged selectable again regardless
+ * of local storage state.
+ */
+export function deriveCustomExercisesFromWorkouts(
+  workouts: Workout[]
+): ExerciseTemplate[] {
+  const seen = new Set<string>();
+  const result: ExerciseTemplate[] = [];
+
+  for (const w of workouts) {
+    for (const ex of w.exercises ?? []) {
+      const name = ex.name?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      // Skip library exercises and duplicates — only surface distinct customs.
+      if (LIBRARY_NAMES_RU.has(key) || seen.has(key)) continue;
+      seen.add(key);
+
+      const group = ex.muscleGroup?.trim() || MUSCLE_GROUPS_RU[0];
+      result.push({
+        id: `workout-${ex.id}`,
+        name,
+        nameRu: name,
+        kind: ex.kind,
+        muscleGroup: group,
+        muscleGroupRu: group,
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Merge locally stored custom exercises with those derived from workouts,
+ * dropping anything that duplicates a library exercise or another entry
+ * (matched by Russian name). Locally stored entries win over derived ones,
+ * since they carry the user's original template id.
+ */
+export function mergeCustomExercises(
+  stored: ExerciseTemplate[],
+  derived: ExerciseTemplate[]
+): ExerciseTemplate[] {
+  const seen = new Set<string>();
+  const result: ExerciseTemplate[] = [];
+
+  for (const t of [...stored, ...derived]) {
+    const key = t.nameRu?.trim().toLowerCase();
+    if (!key || LIBRARY_NAMES_RU.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    result.push(t);
+  }
+
+  return result;
 }
