@@ -8,6 +8,7 @@ import { useApp } from '@/store/app';
 import { useAuth } from '@/store/auth';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { cn } from '@/lib/utils';
+import { deriveCustomExercisesFromProgram } from '@/lib/exercises';
 import type {
   BodyShape,
   Equipment,
@@ -132,7 +133,7 @@ const NUTRITIONS: { id: Nutrition; label: string }[] = [
 
 export default function QuestionnairePage() {
   const router = useRouter();
-  const { questionnaire } = useApp();
+  const { questionnaire, addCustomExercises } = useApp();
   const user = useAuth((s) => s.user);
   const [stepIdx, setStepIdx] = useState(0);
   const [generating, setGenerating] = useState(false);
@@ -186,6 +187,14 @@ export default function QuestionnairePage() {
         return;
       }
       const program = await res.json();
+      // Save any AI-invented exercises (not in the built-in library) into the
+      // user's exercise database, so they're selectable in the picker later.
+      try {
+        const customs = deriveCustomExercisesFromProgram(program);
+        if (customs.length) addCustomExercises(customs);
+      } catch {
+        // Non-fatal: the program is created regardless.
+      }
       router.push('/programs/' + program.id);
     } catch {
       setError('Ошибка сети. Проверь соединение и попробуй снова.');

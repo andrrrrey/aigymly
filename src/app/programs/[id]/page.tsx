@@ -6,12 +6,13 @@ import { ChevronLeft, CalendarPlus, Check, Dumbbell, Timer, Sparkles, Trash2 } f
 import { AnimatePresence, motion } from 'framer-motion';
 import { useApp } from '@/store/app';
 import { cn, addMinutesToTime, addDaysISO, nextDateForWeekday } from '@/lib/utils';
+import { deriveCustomExercisesFromProgram } from '@/lib/exercises';
 import type { Program, ProgramBlock, ProgramDay, Workout } from '@/types';
 
 export default function ProgramDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { questionnaire, addWorkout } = useApp();
+  const { questionnaire, addWorkout, addCustomExercises } = useApp();
 
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,18 @@ export default function ProgramDetailPage() {
         return res.ok ? res.json() : null;
       })
       .then((data: Program | null) => {
-        if (active && data) setProgram(data);
+        if (active && data) {
+          setProgram(data);
+          // Keep the exercise database in sync with the program's moves — the
+          // program lives server-side but custom exercises are per-device, so
+          // this also backfills them when opening a program on a new device.
+          try {
+            const customs = deriveCustomExercisesFromProgram(data);
+            if (customs.length) addCustomExercises(customs);
+          } catch {
+            // Non-fatal.
+          }
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -49,7 +61,7 @@ export default function ProgramDetailPage() {
     return () => {
       active = false;
     };
-  }, [params.id]);
+  }, [params.id, addCustomExercises]);
 
   const startTime = questionnaire.preferredTime || '18:00';
   const durationMin = questionnaire.sessionDurationMin || 60;
@@ -86,6 +98,12 @@ export default function ProgramDetailPage() {
       }
       const updated: Program = await res.json();
       setProgram(updated);
+      try {
+        const customs = deriveCustomExercisesFromProgram(updated);
+        if (customs.length) addCustomExercises(customs);
+      } catch {
+        // Non-fatal.
+      }
       setRegenOpen(false);
       setRegenComment('');
       showToast('Программа перегенерирована');

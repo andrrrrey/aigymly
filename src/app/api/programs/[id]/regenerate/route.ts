@@ -5,6 +5,7 @@ import { getEntitlement, checkAiQuota } from '@/lib/entitlements'
 import { generateProgram, OpenAIError } from '@/lib/openai'
 import { recordAiUsage } from '@/lib/aiUsage'
 import { acquireRateLimit } from '@/lib/rate-limit'
+import { loadWorkoutHistorySummary } from '@/lib/programHistory'
 import type { QuestionnaireAnswers } from '@/types'
 
 // Max length of the free-text regeneration comment, to bound prompt size.
@@ -65,7 +66,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const { program, usage } = await generateProgram(answers, comment)
+    const stats = await loadWorkoutHistorySummary(session.sub)
+    const { program, usage } = await generateProgram(answers, { comment, stats })
     await recordAiUsage(session.sub, 'program', 'success', usage)
 
     const updated = await db.program.update({

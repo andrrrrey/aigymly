@@ -15,6 +15,7 @@ import type {
   QuestionnaireAnswers,
 } from '@/types'
 import type { MonthReportInput, MonthlyReport } from '@/lib/statsMonth'
+import type { ProgramHistorySummary } from '@/lib/programStats'
 
 export type OpenAIErrorCode =
   | 'OPENAI_KEY_MISSING'
@@ -246,6 +247,57 @@ function buildUserPrompt(a: QuestionnaireAnswers): string {
   return lines.join('\n')
 }
 
+// Renders the user's real training history (from the app's workout log) into a
+// prompt block, so the AI anchors starting weights and progression to what the
+// user actually lifts and rebalances neglected muscle groups.
+function buildStatsBlock(s: ProgramHistorySummary): string {
+  if (!s.hasData) {
+    return 'История тренировок в приложении: выполненных тренировок пока нет — это, вероятно, первая программа. Ориентируйся на анкету и подбирай стартовые рабочие веса консервативно, с запасом на технику.'
+  }
+
+  const lines: string[] = []
+  lines.push(
+    'Статистика тренировок пользователя (из истории приложения — ОБЯЗАТЕЛЬНО учитывай при подборе рабочих весов, прогрессии и баланса мышечных групп):'
+  )
+  lines.push(`- Всего тренировочных дней в истории: ${s.totalTrainingDays}`)
+  lines.push(
+    `- За последние 4 недели: ${s.recentTrainingDays} тренировок (~${s.recentPerWeek.toFixed(1)} в неделю)`
+  )
+  if (s.daysSinceLast !== null) {
+    lines.push(
+      `- Последняя тренировка: ${s.daysSinceLast} дн. назад${
+        s.daysSinceLast >= 21 ? ' — был перерыв, начни мягче и не с максимальных весов' : ''
+      }`
+    )
+  }
+
+  if (s.topExercises.length) {
+    lines.push(
+      '- Недавние упражнения и рабочие веса (последний рабочий подход и расчётный 1ПМ):'
+    )
+    for (const e of s.topExercises) {
+      const load =
+        e.lastTopWeightKg > 0
+          ? `${e.lastTopWeightKg} кг × ${e.lastTopReps} повт.`
+          : `${e.lastTopReps} повт. (свой вес)`
+      const orm = e.bestOneRm > 0 ? `, 1ПМ ≈ ${Math.round(e.bestOneRm)} кг` : ''
+      lines.push(`  • ${e.name} (${e.muscleGroup}): ${load}${orm}, тренировок: ${e.sessions}`)
+    }
+  }
+
+  if (s.balance.length) {
+    lines.push(
+      '- Баланс мышечных групп за 4 недели (доля подходов): ' +
+        s.balance.map((g) => `${g.group} ${Math.round(g.percent)}%`).join(', ')
+    )
+  }
+
+  lines.push(
+    'Стартовые рабочие веса в Блоке 1 задавай близко к текущим рабочим весам пользователя (не начинай с нуля, если человек уже поднимает вес), выстраивай прогрессию относительно них и добавляй объём отстающим мышечным группам.'
+  )
+  return lines.join('\n')
+}
+
 const SYSTEM_PROMPT = `Роль: ты — сертифицированный персональный тренер и методист по физической подготовке с большим стажем. Ты хорошо разбираешься в гендерной физиологии, биомеханике и основах нутрициологии. ВАЖНО: ты не врач и не ставишь диагнозы. Твои рекомендации носят общий информационный характер и не заменяют консультацию врача.
 
 Безопасность (высший приоритет, важнее любых целей):
@@ -266,6 +318,7 @@ const SYSTEM_PROMPT = `Роль: ты — сертифицированный п�
 4) Локация и оборудование — строй только из доступного. Соблюдай лимит времени тренировки.
 5) Женская физиология (если пол женский): учитывай беременность (только щадящее ЛФК, без скручиваний/прыжков/тяжестей), фазу цикла (менструация — снизить интенсивность; фолликулярная — пик; лютеиновая — снижение на 20–30%), менопаузу, болезненные менструации, тип фигуры.
 6) Образ жизни: сидячая работа → добавь тяги и раскрытие грудной клетки; сон <6ч → снизь объём на 20% с предупреждением; учитывай тип питания.
+7) История тренировок (если предоставлена статистика из приложения): бери фактические рабочие веса пользователя как отправную точку для Блока 1 — не начинай с нуля, если человек уже поднимает вес; выстраивай прогрессию относительно этих весов; ориентируйся на реальную частоту тренировок; добавляй объём отстающим мышечным группам по балансу подходов. При длительном перерыве (3+ недели без тренировок) снижай стартовую нагрузку и делай подводящий период.
 
 Требования к структуре:
 - Ровно 2 блока. В каждом блоке количество дней (days) строго равно числу тренировок в неделю из анкеты. Блок 2 — тот же сплит, что и Блок 1, но с прогрессией (веса/отдых/сложность).
@@ -640,16 +693,27 @@ export interface ProgramResult {
   usage: AiUsageInfo
 }
 
+export interface GenerateProgramOptions {
+  // Free-text comment from the regeneration flow.
+  comment?: string
+  // Summary of the user's real training history, anchored to their actual
+  // working weights, frequency and muscle balance.
+  stats?: ProgramHistorySummary
+}
+
 export async function generateProgram(
   answers: QuestionnaireAnswers,
-  comment?: string
+  options?: GenerateProgramOptions
 ): Promise<ProgramResult> {
   const apiKey = await getOpenAIKey()
   if (!apiKey) throw new OpenAIError('OPENAI_KEY_MISSING')
   const model = await getOpenAIModelForPrograms()
   let userPrompt = buildUserPrompt(answers)
-  if (comment?.trim()) {
-    userPrompt += `\n\nДополнительные пожелания пользователя (обязательно учти при перегенерации программы): ${comment.trim()}`
+  if (options?.stats) {
+    userPrompt += `\n\n${buildStatsBlock(options.stats)}`
+  }
+  if (options?.comment?.trim()) {
+    userPrompt += `\n\nДополнительные пожелания пользователя (обязательно учти при перегенерации программы): ${options.comment.trim()}`
   }
 
   // One retry on malformed JSON.

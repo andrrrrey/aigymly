@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Workout, Exercise, ExerciseSet, QuestionnaireAnswers } from '@/types';
-import type { ExerciseTemplate } from '@/lib/exercises';
+import { mergeCustomExercises, type ExerciseTemplate } from '@/lib/exercises';
 import { uid } from '@/lib/utils';
 import { getSafeStorage } from '@/lib/safeStorage';
 
@@ -15,6 +15,7 @@ interface AppState {
 
   setSelectedDate: (date: string) => void;
   addCustomExercise: (template: ExerciseTemplate) => void;
+  addCustomExercises: (templates: ExerciseTemplate[]) => void;
   loadWorkouts: () => Promise<void>;
   clearWorkouts: () => void;
   addWorkout: (workout: Omit<Workout, 'id'>) => string;
@@ -64,6 +65,14 @@ export const useApp = create<AppState>()(
 
       addCustomExercise: (template) =>
         set((s) => ({ customExercises: [...s.customExercises, template] })),
+
+      // Merge a batch of templates (e.g. every non-library exercise from an
+      // AI-generated program) into the user's exercise database, dropping
+      // library duplicates and anything already stored.
+      addCustomExercises: (templates) =>
+        set((s) => ({
+          customExercises: mergeCustomExercises(s.customExercises, templates),
+        })),
 
       loadWorkouts: async () => {
         try {

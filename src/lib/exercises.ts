@@ -1,4 +1,4 @@
-import type { Exercise, Workout } from '@/types';
+import type { Exercise, Program, Workout } from '@/types';
 
 export interface ExerciseTemplate {
   id: string;
@@ -161,6 +161,49 @@ export function mergeCustomExercises(
     if (!key || LIBRARY_NAMES_RU.has(key) || seen.has(key)) continue;
     seen.add(key);
     result.push(t);
+  }
+
+  return result;
+}
+
+/**
+ * Reconstruct custom-exercise templates from an AI-generated program.
+ *
+ * The AI invents exercises freely (from the user's available equipment), and
+ * many of them are not in the built-in library. This turns those into
+ * selectable custom exercises, so a program's moves show up in the exercise
+ * picker afterwards — exactly like exercises derived from logged workouts.
+ * Library exercises and duplicates (matched by Russian name) are dropped.
+ */
+export function deriveCustomExercisesFromProgram(
+  program: Program
+): ExerciseTemplate[] {
+  const seen = new Set<string>();
+  const result: ExerciseTemplate[] = [];
+
+  const days =
+    program.blocks && program.blocks.length
+      ? program.blocks.flatMap((b) => b.days)
+      : program.days ?? [];
+
+  for (const d of days) {
+    for (const ex of d.exercises ?? []) {
+      const name = ex.name?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (LIBRARY_NAMES_RU.has(key) || seen.has(key)) continue;
+      seen.add(key);
+
+      const group = ex.muscleGroup?.trim() || MUSCLE_GROUPS_RU[0];
+      result.push({
+        id: `program-${ex.id}`,
+        name,
+        nameRu: name,
+        kind: ex.kind,
+        muscleGroup: group,
+        muscleGroupRu: group,
+      });
+    }
   }
 
   return result;

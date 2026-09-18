@@ -5,6 +5,7 @@ import { getEntitlement, FREE_PROGRAM_LIMIT, checkAiQuota } from '@/lib/entitlem
 import { generateProgram, OpenAIError } from '@/lib/openai'
 import { recordAiUsage } from '@/lib/aiUsage'
 import { acquireRateLimit } from '@/lib/rate-limit'
+import { loadWorkoutHistorySummary } from '@/lib/programHistory'
 import type { QuestionnaireAnswers } from '@/types'
 
 export async function POST(req: Request) {
@@ -45,7 +46,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { program, usage } = await generateProgram(answers)
+    const stats = await loadWorkoutHistorySummary(session.sub)
+    const { program, usage } = await generateProgram(answers, { stats })
     await recordAiUsage(session.sub, 'program', 'success', usage)
 
     const row = await db.program.create({
