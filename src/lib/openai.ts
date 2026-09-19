@@ -84,6 +84,26 @@ function parseUsage(model: string, rawUsage: any): AiUsageInfo {
   }
 }
 
+// Sums the token usage of two OpenAI calls (e.g. generation + safety audit) so
+// callers still record a single, correct usage figure. Cost is re-estimated
+// from the combined token counts; if either call's model is unpriced the
+// combined estimate is null rather than a partial number.
+function combineUsage(a: AiUsageInfo, b: AiUsageInfo): AiUsageInfo {
+  const inputTokens = a.inputTokens + b.inputTokens
+  const outputTokens = a.outputTokens + b.outputTokens
+  const estimatedCostKopecks =
+    a.estimatedCostKopecks === null || b.estimatedCostKopecks === null
+      ? null
+      : a.estimatedCostKopecks + b.estimatedCostKopecks
+  return {
+    model: a.model === b.model ? a.model : `${a.model}+${b.model}`,
+    inputTokens,
+    outputTokens,
+    cachedTokens: a.cachedTokens + b.cachedTokens,
+    estimatedCostKopecks,
+  }
+}
+
 const GOAL_LABELS: Record<string, string> = {
   lose_weight: 'похудение',
   gain_muscle: 'набор мышечной массы',
@@ -248,10 +268,22 @@ function buildUserPrompt(a: QuestionnaireAnswers): string {
 
 const SYSTEM_PROMPT = `Роль: ты — сертифицированный персональный тренер и методист по физической подготовке с большим стажем. Ты хорошо разбираешься в гендерной физиологии, биомеханике и основах нутрициологии. ВАЖНО: ты не врач и не ставишь диагнозы. Твои рекомендации носят общий информационный характер и не заменяют консультацию врача.
 
-Безопасность (высший приоритет, важнее любых целей):
-- Оцени уровень риска анкеты. Отнеси к ВЫСОКОМУ риску: беременность и послеродовой период, недавние операции и незавершённая реабилитация, острые травмы и боли, серьёзные хронические заболевания (неконтролируемая гипертония, болезни сердца, диабет с осложнениями, тяжёлые заболевания позвоночника/суставов) и любые состояния с явными противопоказаниями врача.
-- Для высокорисковых анкет НЕ выдавай интенсивную или потенциально опасную программу. Составляй только максимально щадящий, консервативный вариант из безопасных общеукрепляющих движений И обязательно рекомендуй очную консультацию врача/специалиста ЛФК до начала тренировок. Прямое противопоказание врача без допуска — исключай соответствующую нагрузку полностью.
-- В любом случае добавляй в поле analysis.recommendations краткий дисклеймер: рекомендации носят общий характер, не заменяют консультацию врача, при боли/ухудшении самочувствия нужно прекратить занятия и обратиться к специалисту.
+Безопасность (АБСОЛЮТНЫЙ приоритет, важнее любых целей и пожеланий — цель никогда не оправдывает опасное упражнение):
+
+ШАГ 0 (обязателен ДО подбора упражнений). Внимательно прочитай поля «Хронические заболевания», «Травмы и операции в прошлом», «Текущие жалобы и боли», «Противопоказания от врача» И «Дополнительные пожелания пользователя»: ограничение по здоровью может быть указано в любом из них, в свободной форме, с опечатками или иными словами (например, «протрузия», «грыжа», «диастаз», «гемангиома», «болит спина»). Для КАЖДОГО найденного состояния сначала определи, какие типы нагрузки запрещены и чем их заменить, и только потом составляй программу. Ни одно упражнение в итоговой программе не должно нарушать эти запреты — перепроверь весь список перед выдачей.
+
+Карта противопоказаний (применяй по аналогии и к близким/родственным состояниям):
+- Протрузия, грыжа, остеохондроз, боли в пояснице, гемангиома позвонка → ИСКЛЮЧИ осевую и компрессионную нагрузку на позвоночник, ударную нагрузку и нагруженное разгибание/сгибание поясницы: гак-приседания, приседания и жимы стоя со штангой на спине/плечах, становую тягу, тягу штанги в наклоне со свободным весом, классическую гиперэкстензию с прогибом, прыжки, бег. ЗАМЕНЯЙ на варианты с опорой спины и нейтральным позвоночником: жим ногами в умеренной амплитуде, тренажёры с упором для спины, ягодичный мост, «птица-собака», планка, тяги в тренажёре сидя с упором в грудь.
+- Диастаз прямых мышц живота → ИСКЛЮЧИ рост внутрибрюшного давления и прямую нагрузку на прямую мышцу: классические скручивания и подъёмы корпуса/ног, отжимания с провисанием живота, натуживание с задержкой дыхания, тяжёлую осевую нагрузку. ЗАМЕНЯЙ на глубокие мышцы кора: диафрагмальное дыхание с втягиванием живота, «мёртвый жук» без отрыва поясницы, отведение ног лёжа, изометрия поперечной мышцы живота.
+- Колено (травма, артроз) → без глубоких приседаний, выпадов с большим весом и ударной нагрузки; замена на жим ногами в безопасной амплитуде, разгибания/сгибания в тренажёре с умеренным весом.
+- Плечо → без жимов из-за головы, широких разведений через боль и резких рывковых движений.
+- Гипертония, болезни сердца → без задержки дыхания и натуживания, без положения головой вниз; кардио только низкой–средней интенсивности.
+- Беременность → только щадящее ЛФК, без скручиваний, прыжков, тяжестей и длительного положения лёжа на спине во 2–3 триместре.
+Прямое противопоказание врача — категорический приоритет: указанную им нагрузку исключай полностью, без исключений.
+
+Оцени уровень риска анкеты. Отнеси к ВЫСОКОМУ риску: беременность и послеродовой период, недавние операции и незавершённую реабилитацию, острые травмы и боли, серьёзные хронические заболевания (неконтролируемая гипертония, болезни сердца, диабет с осложнениями, тяжёлые заболевания позвоночника/суставов) и любые состояния с явными противопоказаниями врача. Для высокорисковых анкет НЕ выдавай интенсивную или потенциально опасную программу — только максимально щадящий консервативный вариант из безопасных общеукрепляющих движений, И обязательно рекомендуй очную консультацию врача/специалиста ЛФК до начала тренировок.
+
+В поле analysis.recommendations В САМОМ НАЧАЛЕ добавь блок «⚠️ Учтённые ограничения»: перечисли каждое указанное состояние и какие типы упражнений из-за него исключены и чем заменены. Если ограничений в анкете нет — прямо укажи, что ограничения не указаны. В конце того же поля обязателен краткий дисклеймер: рекомендации носят общий характер, не заменяют консультацию врача; при боли или ухудшении самочувствия нужно прекратить занятия и обратиться к специалисту.
 
 Задача: на основе анкеты пользователя разработать персональную программу тренировок на полный мезоцикл — 8 недель. Программа должна: бить точно в указанные цели (в том числе комбинацию целей); не выходить за рамки медицинских ограничений и приоритета безопасности выше; использовать только доступное оборудование и место; учитывать пол, возраст, антропометрию, уровень подготовки, образ жизни и восстановление.
 
@@ -282,7 +314,7 @@ const SYSTEM_PROMPT = `Роль: ты — сертифицированный п�
   "analysis": {
     "profile": "string — ИМТ и интерпретация, тип телосложения, уровень подготовки, уровень риска (низкий/средний/высокий) с обоснованием",
     "strategy": "string — приоритеты на 8 недель, ранжирование целей, стиль тренинга, режим повторений, тип кардио, принципы питания, описание двух блоков",
-    "recommendations": "string — питание под цель, водный баланс (30 мл на кг веса), сон и восстановление, особые указания. В конце обязателен краткий дисклеймер: рекомендации носят общий характер и не заменяют консультацию врача; при боли или ухудшении самочувствия прекратить занятия и обратиться к специалисту"
+    "recommendations": "string — начни с блока «⚠️ Учтённые ограничения» (каждое состояние из анкеты и какие упражнения исключены/заменены; если ограничений нет — так и напиши), затем питание под цель, водный баланс (30 мл на кг веса), сон и восстановление, особые указания. В конце обязателен краткий дисклеймер: рекомендации носят общий характер и не заменяют консультацию врача; при боли или ухудшении самочувствия прекратить занятия и обратиться к специалисту"
   },
   "blocks": [
     {
@@ -460,6 +492,10 @@ function normalizeProgram(raw: any, goal?: Program['goal']): Program {
 // up output-token cost. An 8-week, two-block program fits comfortably below this.
 const PROGRAM_MAX_TOKENS = 8000
 
+// Program generation is safety-critical (health contraindications must be
+// respected), so we keep sampling low-variance rather than creative.
+const PROGRAM_TEMPERATURE = 0.2
+
 async function callOpenAI(
   apiKey: string,
   model: string,
@@ -480,7 +516,7 @@ async function callOpenAI(
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.7,
+        temperature: PROGRAM_TEMPERATURE,
         max_tokens: PROGRAM_MAX_TOKENS,
       }),
     })
@@ -635,6 +671,135 @@ export async function generateStatsSummary(
   return { summary: content, usage }
 }
 
+// ── Safety audit (second pass over a generated program) ────────────────────
+
+// True when the questionnaire carries any health constraint worth a dedicated
+// safety review. The audit is a paid extra OpenAI call, so we only run it for
+// answers that actually declare a limitation.
+function hasHealthConstraints(a: QuestionnaireAnswers): boolean {
+  return Boolean(
+    a.chronicConditions?.trim() ||
+      a.pastInjuries?.trim() ||
+      a.currentComplaints?.trim() ||
+      a.medicalRestrictions?.trim() ||
+      a.pregnancy === 'yes'
+  )
+}
+
+// Compact, health-only view of the questionnaire for the auditor prompt.
+function buildHealthContext(a: QuestionnaireAnswers, comment?: string): string {
+  const lines: string[] = []
+  if (a.chronicConditions?.trim())
+    lines.push(`Хронические заболевания: ${a.chronicConditions.trim()}`)
+  if (a.pastInjuries?.trim())
+    lines.push(`Травмы и операции в прошлом: ${a.pastInjuries.trim()}`)
+  if (a.currentComplaints?.trim())
+    lines.push(`Текущие жалобы и боли: ${a.currentComplaints.trim()}`)
+  if (a.medicalRestrictions?.trim())
+    lines.push(`Противопоказания от врача: ${a.medicalRestrictions.trim()}`)
+  if (a.sex === 'female' && a.pregnancy === 'yes')
+    lines.push(
+      `Беременность: да${a.pregnancyWeeks ? ` (срок ${a.pregnancyWeeks} нед.)` : ''}`
+    )
+  if (a.sex === 'female' && a.menstrualPhase)
+    lines.push(`Менструальный цикл: ${MENSTRUAL_LABELS[a.menstrualPhase] ?? a.menstrualPhase}`)
+  if (a.notes?.trim())
+    lines.push(`Дополнительные пожелания пользователя: ${a.notes.trim()}`)
+  if (comment?.trim()) lines.push(`Комментарий к перегенерации: ${comment.trim()}`)
+  return lines.join('\n')
+}
+
+// Serializes a normalized program back into the generation JSON schema so the
+// auditor can return a corrected version in the same shape.
+function serializeProgramForAudit(program: Program): string {
+  const shaped = {
+    title: program.title,
+    description: program.description ?? '',
+    analysis: program.analysis ?? { profile: '', strategy: '', recommendations: '' },
+    blocks: (program.blocks ?? []).map((b) => ({
+      name: b.name,
+      weeks: b.weeks,
+      days: b.days.map((d) => ({
+        title: d.title,
+        focus: d.focus ?? '',
+        weekday: d.weekday ?? 0,
+        notes: d.notes ?? '',
+        exercises: d.exercises.map((e) =>
+          e.kind === 'cardio'
+            ? {
+                name: e.name,
+                kind: 'cardio',
+                muscleGroup: e.muscleGroup,
+                durationSec: e.durationSec ?? 0,
+                distanceM: e.distanceM ?? 0,
+              }
+            : {
+                name: e.name,
+                kind: 'strength',
+                muscleGroup: e.muscleGroup,
+                sets: (e.sets ?? []).map((s) => ({ reps: s.reps, weightKg: s.weightKg })),
+              }
+        ),
+      })),
+    })),
+  }
+  return JSON.stringify(shaped)
+}
+
+const AUDIT_SYSTEM_PROMPT = `Роль: ты — эксперт по безопасности тренировок и реабилитолог. Тебе дают ограничения по здоровью пользователя и уже готовую программу тренировок в формате JSON. Твоя единственная задача — проверить КАЖДОЕ упражнение на противопоказания и исправить программу так, чтобы она была безопасной. Ты не врач и не ставишь диагнозы.
+
+Правила проверки:
+- Безопасность важнее целей. Если упражнение противопоказано при указанном состоянии — ЗАМЕНИ его на безопасный аналог, работающий на ту же мышечную группу, а не удаляй (кроме случаев, когда безопасной замены нет).
+- Карта противопоказаний (применяй и к близким состояниям):
+  • Протрузия, грыжа, остеохондроз, боли в пояснице, гемангиома позвонка → без осевой/компрессионной нагрузки на позвоночник, без ударной нагрузки и нагруженного разгибания/сгибания поясницы (гак-приседания, приседания и жимы стоя со штангой, становая тяга, тяга штанги в наклоне, классическая гиперэкстензия, прыжки, бег). Замена — упражнения с опорой спины и нейтральным позвоночником.
+  • Диастаз прямых мышц живота → без роста внутрибрюшного давления и прямой нагрузки на прямую мышцу (классические скручивания и подъёмы корпуса/ног, отжимания с провисанием живота, натуживание, тяжёлая осевая). Замена — глубокие мышцы кора (дыхание с втягиванием живота, «мёртвый жук», отведение ног лёжа).
+  • Колено → без глубоких приседаний, выпадов с большим весом и ударной нагрузки.
+  • Плечо → без жимов из-за головы, широких разведений через боль и рывков.
+  • Гипертония, болезни сердца → без задержки дыхания, натуживания и положения головой вниз; кардио низкой–средней интенсивности.
+  • Беременность → только щадящее ЛФК, без скручиваний, прыжков, тяжестей.
+  • Прямое противопоказание врача исключай полностью.
+- Снижай неоправданно высокие рабочие веса и амплитуды для указанных ограничений.
+- Сохрани структуру программы БЕЗ ИЗМЕНЕНИЙ: то же число блоков, то же число дней в каждом блоке, то же назначение дней. Меняй только упражнения, их параметры и тексты analysis.
+- В analysis.recommendations в начале обнови блок «⚠️ Учтённые ограничения»: перечисли, что и почему было заменено при проверке. Сохрани дисклеймер в конце.
+- Все тексты и названия — на русском языке.
+
+Верни СТРОГО валидный JSON ровно той же структуры, что тебе дали (title, description, analysis{profile,strategy,recommendations}, blocks[].days[].exercises[]), без пояснений и markdown. Если программа уже полностью безопасна — верни её без изменений в том же формате.`
+
+// Second-pass safety review. Best-effort: any failure returns the original
+// program untouched (with null usage) rather than breaking generation.
+async function auditProgramSafety(
+  apiKey: string,
+  model: string,
+  healthContext: string,
+  program: Program,
+  goal?: Program['goal']
+): Promise<{ program: Program; usage: AiUsageInfo | null }> {
+  const userPrompt = `Ограничения по здоровью пользователя:\n${healthContext}\n\nПрограмма для проверки (JSON):\n${serializeProgramForAudit(
+    program
+  )}`
+  try {
+    const { content, usage } = await callOpenAIJson(
+      apiKey,
+      model,
+      AUDIT_SYSTEM_PROMPT,
+      userPrompt,
+      PROGRAM_MAX_TOKENS,
+      PROGRAM_TEMPERATURE
+    )
+    const parsed = JSON.parse(content)
+    const audited = normalizeProgram(parsed, goal)
+    return { program: audited, usage }
+  } catch (err) {
+    // Never let a failed audit fail the whole request — the first-pass program
+    // (already generated under the hardened prompt) still stands.
+    console.error(
+      '[generate-program] safety audit skipped:',
+      err instanceof Error ? err.message : String(err)
+    )
+    return { program, usage: null }
+  }
+}
+
 export interface ProgramResult {
   program: Program
   usage: AiUsageInfo
@@ -663,7 +828,26 @@ export async function generateProgram(
       } catch {
         throw new OpenAIError('OPENAI_BAD_OUTPUT')
       }
-      return { program: normalizeProgram(parsed, answers.goals?.[0]), usage }
+      const program = normalizeProgram(parsed, answers.goals?.[0])
+
+      // Second pass: when the questionnaire declares a health constraint, run a
+      // dedicated safety audit that re-checks every exercise for contraindications.
+      if (hasHealthConstraints(answers)) {
+        const healthContext = buildHealthContext(answers, comment)
+        const audit = await auditProgramSafety(
+          apiKey,
+          model,
+          healthContext,
+          program,
+          answers.goals?.[0]
+        )
+        return {
+          program: audit.program,
+          usage: audit.usage ? combineUsage(usage, audit.usage) : usage,
+        }
+      }
+
+      return { program, usage }
     } catch (err) {
       lastErr = err
       // Only retry on bad output; rethrow hard failures immediately.
@@ -799,7 +983,8 @@ async function callOpenAIJson(
   model: string,
   systemPrompt: string,
   userPrompt: string,
-  maxTokens: number
+  maxTokens: number,
+  temperature = 0.6
 ): Promise<{ content: string; usage: AiUsageInfo }> {
   let res: Response
   try {
@@ -816,7 +1001,7 @@ async function callOpenAIJson(
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.6,
+        temperature,
         max_tokens: maxTokens,
       }),
     })
