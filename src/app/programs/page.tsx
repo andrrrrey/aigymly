@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Sparkles, ChevronRight, Dumbbell, Lock } from 'lucide-react';
+import { Sparkles, ChevronRight, Dumbbell, Lock, Plus, PenLine } from 'lucide-react';
 import { BottomNav } from '@/components/BottomNav';
 import { useAuth } from '@/store/auth';
 
@@ -12,6 +12,10 @@ interface ProgramSummary {
   id: string;
   title: string;
   description?: string;
+  source?: 'ai' | 'manual';
+  status?: 'draft' | 'active';
+  workoutsCount?: number;
+  weeksTotal?: number;
   createdAt: string;
 }
 
@@ -56,9 +60,24 @@ export default function ProgramsPage() {
       </header>
 
       <main className="no-scrollbar flex-1 overflow-y-auto bg-white px-5 pb-24 pt-2">
-        {/* AI banner — main CTA. Free tier allows one program; extra programs need Pro. */}
+        <Link
+          href={user ? '/programs/new' : '/profile'}
+          className="tappable mb-3 flex items-center gap-4 rounded-3xl border border-brand/20 bg-brand/5 p-5"
+        >
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brand text-white">
+            <Plus size={22} strokeWidth={2.2} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[18px] font-semibold tracking-tight text-ink-900">Создать самостоятельно</h3>
+            <p className="mt-1 text-[13px] leading-snug text-ink-500">Собери тренировки и упражнения без анкеты и AI</p>
+          </div>
+          <ChevronRight size={20} className="shrink-0 text-brand" />
+        </Link>
+
+        {/* AI banner. Free tier allows one AI program; extra programs need Pro. */}
         {(() => {
-          const locked = !!user && !user.isPro && programs.length >= 1;
+          const aiProgramsCount = programs.filter((program) => program.source !== 'manual').length;
+          const locked = !!user && !user.isPro && aiProgramsCount >= 1;
           return (
             <Link
               href={locked ? '/subscribe' : '/questionnaire'}
@@ -96,7 +115,7 @@ export default function ProgramsPage() {
           <div className="mt-8 rounded-2xl border border-dashed border-ink-200 p-5 text-center">
             <p className="text-[13px] text-ink-500">
               {user
-                ? 'Пока нет программ. Пройди опрос — и AI соберёт первую программу под тебя.'
+                ? 'Пока нет программ. Создай программу самостоятельно или доверь её AI.'
                 : 'Войди в аккаунт, чтобы создавать и хранить программы.'}
             </p>
           </div>
@@ -116,6 +135,11 @@ export default function ProgramsPage() {
                     {p.title}
                   </div>
                   <div className="truncate text-[12px] text-ink-400">
+                    <span className="inline-flex items-center gap-1">
+                      {p.source === 'manual' ? <PenLine size={11} /> : <Sparkles size={11} />}
+                      {p.source === 'manual' ? 'Вручную' : 'AI'}
+                    </span>
+                    {' · '}{p.workoutsCount ?? 0} трен.{' · '}
                     {format(parseISO(p.createdAt), 'd MMMM yyyy', { locale: ru })}
                   </div>
                 </div>

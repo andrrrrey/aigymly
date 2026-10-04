@@ -14,7 +14,13 @@ export async function GET() {
 
   const [programSuccess, statsSuccess, errorCount, costAgg, payingUsers] = await Promise.all([
     db.aiUsage.count({ where: { feature: 'program', status: 'success', createdAt: { gte: since } } }),
-    db.aiUsage.count({ where: { feature: 'stats', status: 'success', createdAt: { gte: since } } }),
+    db.aiUsage.count({
+      where: {
+        feature: { in: ['stats', 'stats_auto', 'stats_manual', 'monthly_report'] },
+        status: 'success',
+        createdAt: { gte: since },
+      },
+    }),
     db.aiUsage.count({ where: { status: 'error', createdAt: { gte: since } } }),
     db.aiUsage.aggregate({
       where: { status: 'success', createdAt: { gte: since } },

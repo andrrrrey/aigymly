@@ -2,16 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, CalendarPlus, Check, Dumbbell, Timer, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronLeft, CalendarPlus, Check, Dumbbell, Timer, Sparkles, Trash2, Pencil, Copy, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useApp } from '@/store/app';
-import { cn, addMinutesToTime, addDaysISO, nextDateForWeekday } from '@/lib/utils';
-import type { Program, ProgramBlock, ProgramDay, Workout } from '@/types';
+import { cn } from '@/lib/utils';
+import type { Program, ProgramBlock, ProgramDay } from '@/types';
 
 export default function ProgramDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { questionnaire, addWorkout } = useApp();
+  const loadWorkouts = useApp((state) => state.loadWorkouts);
 
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,6 +28,8 @@ export default function ProgramDetailPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -50,9 +52,6 @@ export default function ProgramDetailPage() {
       active = false;
     };
   }, [params.id]);
-
-  const startTime = questionnaire.preferredTime || '18:00';
-  const durationMin = questionnaire.sessionDurationMin || 60;
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -114,6 +113,20 @@ export default function ProgramDetailPage() {
     }
   };
 
+  const handleDuplicate = async () => {
+    setDuplicating(true);
+    try {
+      const res = await fetch(`/api/programs/${params.id}/duplicate`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.id) return showToast('Не удалось дублировать программу');
+      router.push(`/programs/${data.id}/edit`);
+    } catch {
+      showToast('Ошибка сети. Попробуй снова');
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
   // Blocks to render/schedule: real mesocycle blocks, or a single legacy block.
   const blocks: ProgramBlock[] =
     program?.blocks && program.blocks.length
@@ -121,54 +134,32 @@ export default function ProgramDetailPage() {
       : program
         ? [{ name: 'Программа', weeks: '', days: program.days }]
         : [];
-  const isMeso = (program?.blocks?.length ?? 0) > 1;
-
-  const dayToWorkout = (
-    day: ProgramDay,
-    _idx: number,
-    date: string,
-    title?: string
-  ): Omit<Workout, 'id'> => ({
-    title: title ?? day.title,
-    date,
-    startTime,
-    endTime: addMinutesToTime(startTime, durationMin),
-    // Same neutral/gray default as a manually-created workout (until rated).
-    emoji: 'neutral',
-    emojiBg: 'gray',
-    marker: 'gray',
-    icon: '/img/normal.svg',
-    exercises: day.exercises,
-    completed: false,
-  });
-
-  const confirmPicker = () => {
+  const confirmPicker = async () => {
     if (!picker || !program) return;
-    if (picker.mode === 'single') {
-      addWorkout(dayToWorkout(picker.day, picker.idx, pickDate));
-      showToast('Тренировка добавлена в календарь');
-    } else {
-      // Block 1 → weeks 1–4, Block 2 → weeks 5–8 (legacy: one cycle).
-      const weeksPerBlock = isMeso ? 4 : 1;
-      const schedule = computeProgramSchedule(
-        pickDate,
-        blocks,
-        weeksPerBlock,
-        questionnaire.preferredDays
-      );
-      schedule.forEach(({ day, dayIndex, date, weekNumber }) =>
-        addWorkout(
-          dayToWorkout(
-            day,
-            dayIndex,
-            date,
-            isMeso ? `Неделя ${weekNumber} · ${day.title}` : day.title
-          )
-        )
-      );
-      showToast(`Запланировано тренировок: ${schedule.length}`);
+    setScheduling(true);
+    try {
+      const res = await fetch(`/api/programs/${params.id}/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: picker.mode,
+          startDate: pickDate,
+          ...(picker.mode === 'single' ? { dayId: picker.day.id } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast('Не удалось добавить тренировки в календарь');
+        return;
+      }
+      await loadWorkouts();
+      showToast(picker.mode === 'single' ? 'Тренировка добавлена в календарь' : `Запланировано тренировок: ${data.created}`);
+      setPicker(null);
+    } catch {
+      showToast('Ошибка сети. Попробуй снова');
+    } finally {
+      setScheduling(false);
     }
-    setPicker(null);
   };
 
   if (loading) {
@@ -232,12 +223,29 @@ export default function ProgramDetailPage() {
           Запланировать всю программу
         </button>
 
+        {program.source === 'manual' ? (
+          <button
+            onClick={() => router.push(`/programs/${program.id}/edit`)}
+            className="tappable mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-brand px-5 py-3 text-[15px] font-semibold text-brand"
+          >
+            <Pencil size={18} /> Редактировать программу
+          </button>
+        ) : (
+          <button
+            onClick={() => setRegenOpen(true)}
+            className="tappable mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-brand px-5 py-3 text-[15px] font-semibold text-brand"
+          >
+            <Sparkles size={18} /> Перегенерировать программу
+          </button>
+        )}
+
         <button
-          onClick={() => setRegenOpen(true)}
-          className="tappable mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-brand px-5 py-3 text-[15px] font-semibold text-brand"
+          onClick={handleDuplicate}
+          disabled={duplicating}
+          className="tappable mt-2 flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-semibold text-ink-500 disabled:opacity-60"
         >
-          <Sparkles size={18} />
-          Перегенерировать программу
+          {duplicating ? <Loader2 size={17} className="animate-spin" /> : <Copy size={17} />}
+          Дублировать программу
         </button>
 
         {program.analysis && (
@@ -327,7 +335,7 @@ export default function ProgramDetailPage() {
               <p className="mt-1 text-[13px] text-ink-500">
                 {picker.mode === 'single'
                   ? 'Выбери дату тренировки'
-                  : questionnaire.preferredDays?.length
+                  : program.schedule?.preferredDays?.length
                     ? 'Тренировки разложатся по удобным дням недели начиная с выбранной даты'
                     : 'Тренировки добавятся через день начиная с выбранной даты'}
               </p>
@@ -344,8 +352,10 @@ export default function ProgramDetailPage() {
               </div>
               <button
                 onClick={confirmPicker}
-                className="tappable mt-4 w-full rounded-full bg-brand px-5 py-3.5 text-[15px] font-semibold text-white shadow-fab"
+                disabled={scheduling}
+                className="tappable mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-brand px-5 py-3.5 text-[15px] font-semibold text-white shadow-fab disabled:opacity-60"
               >
+                {scheduling && <Loader2 size={17} className="animate-spin" />}
                 {picker.mode === 'single' ? 'Добавить' : 'Запланировать'}
               </button>
             </motion.div>
@@ -545,45 +555,4 @@ function formatCardio(durationSec?: number, distanceM?: number): string {
   if (durationSec) parts.push(`${Math.round(durationSec / 60)} мин`);
   if (distanceM) parts.push(`${(distanceM / 1000).toFixed(1)} км`);
   return parts.join(' · ') || 'кардио';
-}
-
-interface ScheduledDay {
-  day: ProgramDay;
-  dayIndex: number;
-  date: string;
-  weekNumber: number;
-  blockIndex: number;
-}
-
-// Lays the program across the calendar: each block's weekly split repeated for
-// `weeksPerBlock` weeks (Block 1 → weeks 1–4, Block 2 → weeks 5–8).
-// With preferred weekdays: cycles through them; without: spaces every other day.
-function computeProgramSchedule(
-  startISO: string,
-  blocks: ProgramBlock[],
-  weeksPerBlock: number,
-  preferredDays?: number[]
-): ScheduledDay[] {
-  const pdays = (preferredDays ?? []).slice().sort((a, b) => a - b);
-  const out: ScheduledDay[] = [];
-  let cursor = startISO;
-  let weekNumber = 0;
-  blocks.forEach((block, blockIndex) => {
-    for (let w = 0; w < weeksPerBlock; w++) {
-      weekNumber++;
-      block.days.forEach((day, dayIndex) => {
-        let date: string;
-        if (pdays.length) {
-          const wd = pdays[dayIndex % pdays.length];
-          date = nextDateForWeekday(cursor, wd);
-          cursor = addDaysISO(date, 1);
-        } else {
-          date = cursor;
-          cursor = addDaysISO(cursor, 2);
-        }
-        out.push({ day, dayIndex, date, weekNumber, blockIndex });
-      });
-    }
-  });
-  return out;
 }

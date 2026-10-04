@@ -42,6 +42,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!row || row.userId !== session.sub) {
     return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
   }
+  if (row.source !== 'ai') {
+    return NextResponse.json({ error: 'MANUAL_PROGRAM' }, { status: 409 })
+  }
 
   let body: { comment?: string }
   try {
@@ -54,9 +57,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // The original questionnaire answers are persisted inside the program's data JSON.
   let answers: QuestionnaireAnswers | undefined
+  let existingSchedule: unknown
   try {
     const parsed = JSON.parse(row.data)
     if (parsed?.answers && typeof parsed.answers === 'object') answers = parsed.answers
+    existingSchedule = parsed?.schedule
   } catch {
     answers = undefined
   }
@@ -88,6 +93,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           analysis: program.analysis,
           weeksTotal: program.weeksTotal,
           answers,
+          schedule: existingSchedule ?? {
+            weeksTotal: program.weeksTotal ?? 8,
+            preferredDays: answers.preferredDays ?? [],
+            startTime: answers.preferredTime ?? '18:00',
+            durationMin: answers.sessionDurationMin ?? 60,
+            notifyMinutesBefore: 0,
+          },
         }),
       },
     })

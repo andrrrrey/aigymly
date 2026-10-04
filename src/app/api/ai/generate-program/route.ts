@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   // Free tier allows a single program; additional programs require a subscription.
   const ent = await getEntitlement(session.sub)
   if (!ent.isPro) {
-    const programCount = await db.program.count({ where: { userId: session.sub } })
+    const programCount = await db.program.count({ where: { userId: session.sub, source: 'ai' } })
     if (programCount >= FREE_PROGRAM_LIMIT) {
       return NextResponse.json({ error: 'SUBSCRIPTION_REQUIRED' }, { status: 402 })
     }
@@ -59,6 +59,8 @@ export async function POST(req: Request) {
     const row = await db.program.create({
       data: {
         userId: session.sub,
+        source: 'ai',
+        status: 'active',
         title: program.title,
         description: program.description ?? null,
         goal: program.goal ?? null,
@@ -68,6 +70,13 @@ export async function POST(req: Request) {
           analysis: program.analysis,
           weeksTotal: program.weeksTotal,
           answers,
+          schedule: {
+            weeksTotal: program.weeksTotal ?? 8,
+            preferredDays: answers.preferredDays ?? [],
+            startTime: answers.preferredTime ?? '18:00',
+            durationMin: answers.sessionDurationMin ?? 60,
+            notifyMinutesBefore: 0,
+          },
         }),
       },
     })

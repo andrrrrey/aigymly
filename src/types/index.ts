@@ -124,6 +124,14 @@ export interface ProgramAnalysis {
   recommendations: string; // Питание, вода, сон, особые указания
 }
 
+export interface ProgramSchedule {
+  weeksTotal: number;
+  preferredDays: number[]; // 0=Mon ... 6=Sun
+  startTime: string; // HH:mm
+  durationMin: number;
+  notifyMinutesBefore?: number;
+}
+
 export interface Program {
   id: string;
   title: string;
@@ -133,7 +141,11 @@ export interface Program {
   blocks?: ProgramBlock[];
   analysis?: ProgramAnalysis;
   weeksTotal?: number; // 8
+  source?: 'ai' | 'manual';
+  status?: 'draft' | 'active';
+  schedule?: ProgramSchedule;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface QuestionnaireAnswers {

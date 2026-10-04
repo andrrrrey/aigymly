@@ -43,8 +43,14 @@ model Workout {
   notes               String?
   notifyMinutesBefore Int?
   completed           Boolean  @default(false)
+  programId           String?
+  program             Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  programDayId        String?
+  programWeek         Int?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  @@index([programId])
 }
 
 model Token {
@@ -69,9 +75,12 @@ model Program {
   title       String
   description String?
   goal        String?
+  source      String   @default("ai") // ai | manual
+  status      String   @default("active") // draft | active
   data        String   @default("{}") // JSON: { days: ProgramDay[] }
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  workouts    Workout[]
 }
 
 model Admin {
