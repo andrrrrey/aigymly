@@ -104,6 +104,7 @@ export interface AiCostControls {
 }
 
 function parseStoredInt(value: string | null, fallback: number, min: number, max: number): number {
+  if (value === null || value.trim() === '') return fallback
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback
 }
