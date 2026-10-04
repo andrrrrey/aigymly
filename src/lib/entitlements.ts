@@ -1,20 +1,14 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import type { AiFeature } from '@/lib/aiUsage'
+import { getAiCostControls } from '@/lib/settings'
 
 // Number of programs a free (non-subscribed) user may create.
 export const FREE_PROGRAM_LIMIT = 1
 
-// Default Pro AI quotas over a rolling 30-day window (see the tariff document,
-// section 4). Overridable per plan via the PlanLimit table.
+// Every configurable action quota and monetary budget uses the same rolling
+// window so old usage frees capacity gradually instead of at a calendar reset.
 export const QUOTA_PERIOD_DAYS = 30
-export const PROGRAM_ACTIONS_PER_30D = 4 // create + regenerate combined
-export const STATS_ANALYSES_PER_30D = 31 // unique stats updates (technical cap)
-
-const DEFAULT_ALLOWANCE: Record<AiFeature, number> = {
-  program: PROGRAM_ACTIONS_PER_30D,
-  stats: STATS_ANALYSES_PER_30D,
-}
 
 export interface QuotaStatus {
   allowed: boolean
@@ -25,28 +19,21 @@ export interface QuotaStatus {
   resetAt: Date | null
 }
 
-async function getAllowance(
-  planId: string | null,
-  feature: AiFeature
-): Promise<{ allowance: number; periodDays: number }> {
-  if (planId) {
-    const row = await db.planLimit.findUnique({
-      where: { planId_feature: { planId, feature } },
-    })
-    if (row) return { allowance: row.allowance, periodDays: row.periodDays }
-  }
-  return { allowance: DEFAULT_ALLOWANCE[feature], periodDays: QUOTA_PERIOD_DAYS }
-}
-
-// Counts a user's successful AI actions in the rolling window and reports
-// whether another is allowed. Only successful calls that actually hit OpenAI
-// are recorded in AiUsage, so cached stats summaries never consume quota.
+// Counts a user's successful actions in the rolling window. New action types
+// are intentionally separate: a monthly report no longer consumes a manual
+// summary refresh, while the hard monetary budget still covers every feature.
 export async function checkAiQuota(
   userId: string,
-  feature: AiFeature,
-  planId: string | null
+  feature: Extract<AiFeature, 'program' | 'stats_manual' | 'monthly_report'>
 ): Promise<QuotaStatus> {
-  const { allowance, periodDays } = await getAllowance(planId, feature)
+  const controls = await getAiCostControls()
+  const allowance =
+    feature === 'program'
+      ? controls.programActionsPer30d
+      : feature === 'stats_manual'
+        ? controls.manualStatsRefreshesPer30d
+        : controls.monthlyReportsPer30d
+  const periodDays = QUOTA_PERIOD_DAYS
   const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000)
   const rows = await db.aiUsage.findMany({
     where: { userId, feature, status: 'success', createdAt: { gte: since } },
@@ -59,6 +46,36 @@ export async function checkAiQuota(
       ? new Date(rows[0].createdAt.getTime() + periodDays * 24 * 60 * 60 * 1000)
       : null
   return { allowed: used < allowance, used, limit: allowance, periodDays, resetAt }
+}
+
+export interface AiBudgetStatus {
+  spentKopecks: number
+  softBudgetKopecks: number
+  hardBudgetKopecks: number
+  softExceeded: boolean
+  hardExceeded: boolean
+  periodDays: number
+}
+
+// Conservative account-level cost ceiling. Cached responses never reach this
+// check, while every successful paid call with a known model contributes its
+// estimated cost across programs, summaries and reports.
+export async function checkAiBudget(userId: string): Promise<AiBudgetStatus> {
+  const controls = await getAiCostControls()
+  const since = new Date(Date.now() - QUOTA_PERIOD_DAYS * 24 * 60 * 60 * 1000)
+  const result = await db.aiUsage.aggregate({
+    where: { userId, status: 'success', createdAt: { gte: since } },
+    _sum: { estimatedCost: true },
+  })
+  const spentKopecks = result._sum.estimatedCost ?? 0
+  return {
+    spentKopecks,
+    softBudgetKopecks: controls.softBudgetKopecks,
+    hardBudgetKopecks: controls.hardBudgetKopecks,
+    softExceeded: spentKopecks >= controls.softBudgetKopecks,
+    hardExceeded: spentKopecks >= controls.hardBudgetKopecks,
+    periodDays: QUOTA_PERIOD_DAYS,
+  }
 }
 
 export interface Entitlement {

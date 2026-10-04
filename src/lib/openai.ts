@@ -33,7 +33,8 @@ export class OpenAIError extends Error {
 
 // Model prices in USD per 1M tokens (input / output). Sourced from the tariff
 // document; used only to estimate cost — the source of truth is the stored
-// `usage`. Unknown models yield a null estimate rather than a wrong number.
+// `usage`. Unknown models use a conservative fallback so they cannot bypass
+// the monetary guardrail.
 const MODEL_PRICING_USD_PER_M: Record<string, { input: number; output: number }> = {
   'gpt-4o': { input: 2.5, output: 10 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
@@ -41,6 +42,10 @@ const MODEL_PRICING_USD_PER_M: Record<string, { input: number; output: number }>
   'gpt-4.1-mini': { input: 0.4, output: 1.6 },
   'gpt-4.1-nano': { input: 0.1, output: 0.4 },
 }
+
+// A custom/unknown model must not bypass the account budget. This intentionally
+// conservative fallback can overestimate cost until the model is added above.
+const UNKNOWN_MODEL_PRICING_USD_PER_M = { input: 10, output: 30 }
 
 // Budget FX rate with a margin over the official rate (see the tariff document).
 const RUB_PER_USD = 100
@@ -50,8 +55,8 @@ export interface AiUsageInfo {
   inputTokens: number
   outputTokens: number
   cachedTokens: number
-  // Estimated cost in kopecks (Int, aggregation-safe); null when the model's
-  // pricing is unknown.
+  // Estimated cost in kopecks (Int, aggregation-safe). Nullable for backwards
+  // compatibility with historical usage rows.
   estimatedCostKopecks: number | null
 }
 
@@ -62,8 +67,7 @@ export function estimateCostKopecks(
   inputTokens: number,
   outputTokens: number
 ): number | null {
-  const p = MODEL_PRICING_USD_PER_M[model]
-  if (!p) return null
+  const p = MODEL_PRICING_USD_PER_M[model] ?? UNKNOWN_MODEL_PRICING_USD_PER_M
   const usd = (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output
   return Math.round(usd * RUB_PER_USD * 100)
 }
@@ -85,9 +89,8 @@ function parseUsage(model: string, rawUsage: any): AiUsageInfo {
 }
 
 // Sums the token usage of two OpenAI calls (e.g. generation + safety audit) so
-// callers still record a single, correct usage figure. Cost is re-estimated
-// from the combined token counts; if either call's model is unpriced the
-// combined estimate is null rather than a partial number.
+// callers still record a single, correct usage figure. Cost is combined from
+// the two independently estimated calls.
 function combineUsage(a: AiUsageInfo, b: AiUsageInfo): AiUsageInfo {
   const inputTokens = a.inputTokens + b.inputTokens
   const outputTokens = a.outputTokens + b.outputTokens

@@ -23,6 +23,14 @@ interface SettingsInfo {
   model: string;
   modelPrograms: string;
   modelStats: string;
+  aiControls: {
+    softBudgetRubles: number;
+    hardBudgetRubles: number;
+    programActionsPer30d: number;
+    manualStatsRefreshesPer30d: number;
+    monthlyReportsPer30d: number;
+    autoStatsRefreshHours: number;
+  };
   tbank: TbankInfo;
   social: { telegram: string; pinterest: string };
 }
@@ -33,6 +41,11 @@ export default function AdminSettingsPage() {
   const [model, setModel] = useState('');
   const [modelPrograms, setModelPrograms] = useState('');
   const [modelStats, setModelStats] = useState('');
+  const [aiSoftBudgetRubles, setAiSoftBudgetRubles] = useState(30);
+  const [aiHardBudgetRubles, setAiHardBudgetRubles] = useState(50);
+  const [aiProgramActionsPer30d, setAiProgramActionsPer30d] = useState(4);
+  const [aiManualStatsRefreshesPer30d, setAiManualStatsRefreshesPer30d] = useState(5);
+  const [aiMonthlyReportsPer30d, setAiMonthlyReportsPer30d] = useState(1);
 
   const [tbankKey, setTbankKey] = useState('');
   const [tbankPass, setTbankPass] = useState('');
@@ -46,6 +59,7 @@ export default function AdminSettingsPage() {
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const load = () => {
     fetch('/api/admin/settings')
@@ -56,6 +70,11 @@ export default function AdminSettingsPage() {
           setModel(data.model);
           setModelPrograms(data.modelPrograms);
           setModelStats(data.modelStats);
+          setAiSoftBudgetRubles(data.aiControls.softBudgetRubles);
+          setAiHardBudgetRubles(data.aiControls.hardBudgetRubles);
+          setAiProgramActionsPer30d(data.aiControls.programActionsPer30d);
+          setAiManualStatsRefreshesPer30d(data.aiControls.manualStatsRefreshesPer30d);
+          setAiMonthlyReportsPer30d(data.aiControls.monthlyReportsPer30d);
           setTbankMode(data.tbank.mode);
           setTaxation(data.tbank.taxation);
           setVat(data.tbank.vat);
@@ -73,6 +92,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
+    setSaveError('');
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'PUT',
@@ -82,6 +102,11 @@ export default function AdminSettingsPage() {
           model,
           modelPrograms,
           modelStats,
+          aiSoftBudgetRubles,
+          aiHardBudgetRubles,
+          aiProgramActionsPer30d,
+          aiManualStatsRefreshesPer30d,
+          aiMonthlyReportsPer30d,
           tbankTerminalKey: tbankKey,
           tbankPassword: tbankPass,
           tbankMode,
@@ -99,7 +124,11 @@ export default function AdminSettingsPage() {
         setSaved(true);
         load();
         setTimeout(() => setSaved(false), 2500);
+      } else {
+        setSaveError('Не удалось сохранить. Проверьте значения AI-лимитов.');
       }
+    } catch {
+      setSaveError('Не удалось сохранить настройки. Попробуйте ещё раз.');
     } finally {
       setSaving(false);
     }
@@ -167,6 +196,65 @@ export default function AdminSettingsPage() {
               Раздельные модели для генерации программ и анализа статистики. Пусто — используется
               модель по умолчанию. Перед переходом на дешёвые модели (gpt-4.1-mini / gpt-4o-mini)
               сравните качество на 30–50 анкетах.
+            </p>
+          </div>
+        </section>
+
+        {/* AI cost controls */}
+        <section className="rounded-2xl border border-ink-200 bg-white p-5">
+          <h2 className="text-[16px] font-semibold text-ink-900">AI-бюджеты и лимиты</h2>
+          <p className="mt-1 text-[13px] text-ink-500">
+            Значения применяются к каждому пользователю за скользящие 30 дней. Автоматическая
+            сводка обновляется не чаще одного раза за 24 часа.
+          </p>
+
+          <div className="mt-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <AuthInput
+                label="Мягкий бюджет, ₽"
+                type="number"
+                min="0"
+                step="0.01"
+                value={aiSoftBudgetRubles}
+                onChange={(e) => setAiSoftBudgetRubles(Number(e.target.value))}
+              />
+              <AuthInput
+                label="Жёсткий бюджет, ₽"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={aiHardBudgetRubles}
+                onChange={(e) => setAiHardBudgetRubles(Number(e.target.value))}
+              />
+            </div>
+            <AuthInput
+              label="Программы и корректировки / 30 дней"
+              type="number"
+              min="0"
+              step="1"
+              value={aiProgramActionsPer30d}
+              onChange={(e) => setAiProgramActionsPer30d(Number(e.target.value))}
+            />
+            <AuthInput
+              label="Ручные обновления сводки / 30 дней"
+              type="number"
+              min="0"
+              step="1"
+              value={aiManualStatsRefreshesPer30d}
+              onChange={(e) => setAiManualStatsRefreshesPer30d(Number(e.target.value))}
+            />
+            <AuthInput
+              label="Новые месячные отчёты / 30 дней"
+              type="number"
+              min="0"
+              step="1"
+              value={aiMonthlyReportsPer30d}
+              onChange={(e) => setAiMonthlyReportsPer30d(Number(e.target.value))}
+            />
+            <p className="px-1 text-[12px] leading-relaxed text-ink-400">
+              После мягкого бюджета недоступны дополнительные ручные обновления. После жёсткого
+              бюджета блокируются все новые AI-вызовы. Готовые кешированные сводки и отчёты
+              остаются доступными.
             </p>
           </div>
         </section>
@@ -299,6 +387,7 @@ export default function AdminSettingsPage() {
               Сохранено
             </span>
           )}
+          {saveError && <span className="text-[13px] text-marker-red">{saveError}</span>}
         </div>
       </form>
     </div>

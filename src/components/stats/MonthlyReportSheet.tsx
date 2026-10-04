@@ -69,10 +69,15 @@ export function MonthlyReportSheet({
             kind: 'error',
             message: 'Отчёт недоступен: администратор ещё не настроил ключ OpenAI.',
           });
-        } else if (data?.error === 'QUOTA_EXCEEDED') {
+        } else if (data?.error === 'MONTHLY_REPORT_QUOTA_EXCEEDED') {
           setState({
             kind: 'error',
-            message: 'Лимит генераций на этот период исчерпан. Отчёт будет доступен позже.',
+            message: 'Лимит новых месячных отчётов за 30 дней исчерпан.',
+          });
+        } else if (data?.error === 'HARD_BUDGET_EXCEEDED') {
+          setState({
+            kind: 'error',
+            message: 'Новый отчёт временно недоступен до обновления AI-бюджета.',
           });
         } else if (res.status === 429) {
           setState({ kind: 'error', message: 'Слишком часто. Подождите немного и попробуйте снова.' });

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { getEntitlement, FREE_PROGRAM_LIMIT, checkAiQuota } from '@/lib/entitlements'
+import { getEntitlement, FREE_PROGRAM_LIMIT, checkAiQuota, checkAiBudget } from '@/lib/entitlements'
 import { generateProgram, OpenAIError } from '@/lib/openai'
 import { recordAiUsage } from '@/lib/aiUsage'
 import { acquireRateLimit } from '@/lib/rate-limit'
@@ -20,13 +20,21 @@ export async function POST(req: Request) {
     }
   } else {
     // Pro users have a monthly cap on program actions (create + regenerate).
-    const quota = await checkAiQuota(session.sub, 'program', ent.planId)
+    const quota = await checkAiQuota(session.sub, 'program')
     if (!quota.allowed) {
       return NextResponse.json(
         { error: 'QUOTA_EXCEEDED', limit: quota.limit, used: quota.used, resetAt: quota.resetAt },
         { status: 429 }
       )
     }
+  }
+
+  const budget = await checkAiBudget(session.sub)
+  if (budget.hardExceeded) {
+    return NextResponse.json(
+      { error: 'HARD_BUDGET_EXCEEDED', spentKopecks: budget.spentKopecks, hardBudgetKopecks: budget.hardBudgetKopecks },
+      { status: 429 }
+    )
   }
 
   let answers: QuestionnaireAnswers

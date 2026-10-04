@@ -9,7 +9,7 @@ import { EmptyNote } from './StatsSection';
 type State =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'done'; text: string }
+  | { kind: 'done'; text: string; stale?: boolean; nextRefreshAt?: string }
   | { kind: 'error'; message: string };
 
 function buildPayload(stats: MonthStats) {
@@ -51,7 +51,7 @@ export function AiSummaryBlock({ stats, isPro }: { stats: MonthStats; isPro: boo
       const res = await fetch('/api/ai/stats-summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildPayload(stats)),
+        body: JSON.stringify({ ...buildPayload(stats), manualRefresh: force }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -62,10 +62,20 @@ export function AiSummaryBlock({ stats, isPro }: { stats: MonthStats; isPro: boo
             kind: 'error',
             message: 'Сводка недоступна: администратор ещё не настроил ключ OpenAI.',
           });
-        } else if (data?.error === 'QUOTA_EXCEEDED') {
+        } else if (data?.error === 'MANUAL_QUOTA_EXCEEDED') {
           setState({
             kind: 'error',
-            message: 'Лимит обновлений анализа на этот период исчерпан. Новый анализ будет доступен позже.',
+            message: 'Лимит дополнительных обновлений за 30 дней исчерпан.',
+          });
+        } else if (data?.error === 'SOFT_BUDGET_EXCEEDED') {
+          setState({
+            kind: 'error',
+            message: 'Дополнительное обновление временно недоступно из-за мягкого AI-бюджета.',
+          });
+        } else if (data?.error === 'HARD_BUDGET_EXCEEDED') {
+          setState({
+            kind: 'error',
+            message: 'AI-анализ временно недоступен до обновления бюджета за 30 дней.',
           });
         } else if (res.status === 429) {
           setState({
@@ -84,7 +94,12 @@ export function AiSummaryBlock({ stats, isPro }: { stats: MonthStats; isPro: boo
         return;
       }
       cache.current.set(stats.monthKey, text);
-      setState({ kind: 'done', text });
+      setState({
+        kind: 'done',
+        text,
+        stale: data?.stale === true,
+        nextRefreshAt: typeof data?.nextRefreshAt === 'string' ? data.nextRefreshAt : undefined,
+      });
     } catch {
       setState({ kind: 'error', message: 'Ошибка сети. Проверьте соединение и попробуйте снова.' });
     }
@@ -154,6 +169,20 @@ export function AiSummaryBlock({ stats, isPro }: { stats: MonthStats; isPro: boo
           <div className="space-y-2 whitespace-pre-line text-[14px] leading-relaxed text-ink-700">
             {state.text}
           </div>
+          {state.stale && (
+            <p className="mt-3 text-[12px] leading-snug text-ink-400">
+              Показана предыдущая сводка. Автоматически она обновляется не чаще одного раза в
+              сутки.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => load(true)}
+            className="tappable mt-3 flex items-center gap-1.5 rounded-full bg-ink-100 px-3.5 py-2 text-[13px] font-semibold text-ink-700"
+          >
+            <RefreshCw size={14} />
+            Обновить сейчас
+          </button>
         </div>
       ) : null}
     </section>

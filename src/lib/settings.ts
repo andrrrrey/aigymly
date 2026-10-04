@@ -12,6 +12,12 @@ export const SETTING_KEYS = {
   // so program generation and stats summaries can use different models.
   openaiModelPrograms: 'openai_model_programs',
   openaiModelStats: 'openai_model_stats',
+  // Global AI cost controls. Monetary values are stored in kopecks.
+  aiSoftBudgetKopecks: 'ai_soft_budget_kopecks',
+  aiHardBudgetKopecks: 'ai_hard_budget_kopecks',
+  aiProgramActionsPer30d: 'ai_program_actions_per_30d',
+  aiManualStatsRefreshesPer30d: 'ai_manual_stats_refreshes_per_30d',
+  aiMonthlyReportsPer30d: 'ai_monthly_reports_per_30d',
   // T-Bank (Tinkoff) internet acquiring.
   tbankTerminalKey: 'tbank_terminal_key',
   tbankPassword: 'tbank_password',
@@ -29,6 +35,13 @@ export const DEFAULT_TBANK_VAT = 'none'
 
 export const DEFAULT_SOCIAL_TELEGRAM_URL = 'https://t.me/aigymly'
 export const DEFAULT_SOCIAL_PINTEREST_URL = 'https://ru.pinterest.com/aigymly/'
+
+export const DEFAULT_AI_SOFT_BUDGET_KOPECKS = 3_000 // 30 RUB / rolling 30 days
+export const DEFAULT_AI_HARD_BUDGET_KOPECKS = 5_000 // 50 RUB / rolling 30 days
+export const DEFAULT_AI_PROGRAM_ACTIONS_PER_30D = 4
+export const DEFAULT_AI_MANUAL_STATS_REFRESHES_PER_30D = 5
+export const DEFAULT_AI_MONTHLY_REPORTS_PER_30D = 1
+export const AUTO_STATS_REFRESH_HOURS = 24
 
 export async function getSetting(key: string): Promise<string | null> {
   const row = await db.setting.findUnique({ where: { key } })
@@ -79,6 +92,54 @@ export async function getOpenAIModelForStats(): Promise<string> {
   const fromDb = await getSetting(SETTING_KEYS.openaiModelStats)
   if (fromDb && fromDb.trim()) return fromDb.trim()
   return getOpenAIModel()
+}
+
+export interface AiCostControls {
+  softBudgetKopecks: number
+  hardBudgetKopecks: number
+  programActionsPer30d: number
+  manualStatsRefreshesPer30d: number
+  monthlyReportsPer30d: number
+  autoStatsRefreshHours: number
+}
+
+function parseStoredInt(value: string | null, fallback: number, min: number, max: number): number {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback
+}
+
+// Global guardrails used by every paid AI endpoint. Settings are deliberately
+// data-backed so they can be tuned from the admin panel without a deployment.
+export async function getAiCostControls(): Promise<AiCostControls> {
+  const [soft, hard, programs, manualStats, monthlyReports] = await Promise.all([
+    getSetting(SETTING_KEYS.aiSoftBudgetKopecks),
+    getSetting(SETTING_KEYS.aiHardBudgetKopecks),
+    getSetting(SETTING_KEYS.aiProgramActionsPer30d),
+    getSetting(SETTING_KEYS.aiManualStatsRefreshesPer30d),
+    getSetting(SETTING_KEYS.aiMonthlyReportsPer30d),
+  ])
+
+  const softBudgetKopecks = parseStoredInt(soft, DEFAULT_AI_SOFT_BUDGET_KOPECKS, 0, 10_000_000)
+  const hardBudgetKopecks = parseStoredInt(hard, DEFAULT_AI_HARD_BUDGET_KOPECKS, 1, 10_000_000)
+
+  return {
+    softBudgetKopecks: Math.min(softBudgetKopecks, hardBudgetKopecks),
+    hardBudgetKopecks,
+    programActionsPer30d: parseStoredInt(programs, DEFAULT_AI_PROGRAM_ACTIONS_PER_30D, 0, 1_000),
+    manualStatsRefreshesPer30d: parseStoredInt(
+      manualStats,
+      DEFAULT_AI_MANUAL_STATS_REFRESHES_PER_30D,
+      0,
+      1_000
+    ),
+    monthlyReportsPer30d: parseStoredInt(
+      monthlyReports,
+      DEFAULT_AI_MONTHLY_REPORTS_PER_30D,
+      0,
+      1_000
+    ),
+    autoStatsRefreshHours: AUTO_STATS_REFRESH_HOURS,
+  }
 }
 
 export interface TbankConfig {

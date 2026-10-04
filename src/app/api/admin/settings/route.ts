@@ -11,6 +11,7 @@ import {
   getOpenAIModelForStats,
   getTbankConfig,
   getSocialLinks,
+  getAiCostControls,
   DEFAULT_TBANK_TAXATION,
   DEFAULT_TBANK_VAT,
 } from '@/lib/settings'
@@ -29,6 +30,7 @@ export async function GET() {
   const modelPrograms = await getOpenAIModelForPrograms()
   const modelStats = await getOpenAIModelForStats()
   const hasEnvKey = !!process.env.OPENAI_API_KEY?.trim()
+  const aiControls = await getAiCostControls()
 
   const social = await getSocialLinks()
   const tbank = await getTbankConfig()
@@ -44,6 +46,14 @@ export async function GET() {
     model,
     modelPrograms,
     modelStats,
+    aiControls: {
+      softBudgetRubles: aiControls.softBudgetKopecks / 100,
+      hardBudgetRubles: aiControls.hardBudgetKopecks / 100,
+      programActionsPer30d: aiControls.programActionsPer30d,
+      manualStatsRefreshesPer30d: aiControls.manualStatsRefreshesPer30d,
+      monthlyReportsPer30d: aiControls.monthlyReportsPer30d,
+      autoStatsRefreshHours: aiControls.autoStatsRefreshHours,
+    },
     tbank: {
       terminalKeySet: !!tbank.terminalKey,
       terminalKeyMasked:
@@ -80,11 +90,42 @@ export async function PUT(req: Request) {
     tbankCompanyEmail?: string
     socialTelegramUrl?: string
     socialPinterestUrl?: string
+    aiSoftBudgetRubles?: number
+    aiHardBudgetRubles?: number
+    aiProgramActionsPer30d?: number
+    aiManualStatsRefreshesPer30d?: number
+    aiMonthlyReportsPer30d?: number
   }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
+  }
+
+  const aiValues = [
+    body.aiSoftBudgetRubles,
+    body.aiHardBudgetRubles,
+    body.aiProgramActionsPer30d,
+    body.aiManualStatsRefreshesPer30d,
+    body.aiMonthlyReportsPer30d,
+  ]
+  const hasAiValues = aiValues.some((value) => value !== undefined)
+  if (hasAiValues) {
+    const [soft, hard, programs, manualStats, reports] = aiValues
+    const validMoney = (value: number | undefined, min: number) =>
+      typeof value === 'number' && Number.isFinite(value) && value >= min && value <= 100_000
+    const validCount = (value: number | undefined) =>
+      typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 1_000
+    if (
+      !validMoney(soft, 0) ||
+      !validMoney(hard, 0.01) ||
+      (soft as number) > (hard as number) ||
+      !validCount(programs) ||
+      !validCount(manualStats) ||
+      !validCount(reports)
+    ) {
+      return NextResponse.json({ error: 'INVALID_AI_CONTROLS' }, { status: 400 })
+    }
   }
 
   // Only overwrite secrets when a non-empty value is provided; secrets are
@@ -125,6 +166,18 @@ export async function PUT(req: Request) {
   }
   if (typeof body.socialPinterestUrl === 'string') {
     await setSetting(SETTING_KEYS.socialPinterestUrl, body.socialPinterestUrl.trim())
+  }
+  if (hasAiValues) {
+    await Promise.all([
+      setSetting(SETTING_KEYS.aiSoftBudgetKopecks, String(Math.round(body.aiSoftBudgetRubles! * 100))),
+      setSetting(SETTING_KEYS.aiHardBudgetKopecks, String(Math.round(body.aiHardBudgetRubles! * 100))),
+      setSetting(SETTING_KEYS.aiProgramActionsPer30d, String(body.aiProgramActionsPer30d)),
+      setSetting(
+        SETTING_KEYS.aiManualStatsRefreshesPer30d,
+        String(body.aiManualStatsRefreshesPer30d)
+      ),
+      setSetting(SETTING_KEYS.aiMonthlyReportsPer30d, String(body.aiMonthlyReportsPer30d)),
+    ])
   }
 
   return NextResponse.json({ ok: true })

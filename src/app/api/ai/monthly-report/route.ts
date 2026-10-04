@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { getEntitlement, checkAiQuota } from '@/lib/entitlements'
+import { getEntitlement, checkAiQuota, checkAiBudget } from '@/lib/entitlements'
 import {
   generateMonthlyReport,
   OpenAIError,
@@ -138,15 +138,28 @@ export async function POST(req: Request) {
   const stored = await db.aiMonthlyReport.findUnique({
     where: { userId_monthKey: { userId: session.sub, monthKey } },
   })
-  if (stored && stored.payloadHash === payloadHash) {
+  if (stored) {
     return NextResponse.json({ report: JSON.parse(stored.report), cached: true })
   }
 
-  // A fresh generation counts against the monthly AI cap (shared 'stats' bucket).
-  const quota = await checkAiQuota(session.sub, 'stats', ent.planId)
+  // Reports have their own rolling allowance and no longer consume summary
+  // refreshes. The permanent per-month archive above always remains free.
+  const quota = await checkAiQuota(session.sub, 'monthly_report')
   if (!quota.allowed) {
     return NextResponse.json(
-      { error: 'QUOTA_EXCEEDED', limit: quota.limit, used: quota.used, resetAt: quota.resetAt },
+      { error: 'MONTHLY_REPORT_QUOTA_EXCEEDED', limit: quota.limit, used: quota.used, resetAt: quota.resetAt },
+      { status: 429 }
+    )
+  }
+
+  const budget = await checkAiBudget(session.sub)
+  if (budget.hardExceeded) {
+    return NextResponse.json(
+      {
+        error: 'HARD_BUDGET_EXCEEDED',
+        spentKopecks: budget.spentKopecks,
+        hardBudgetKopecks: budget.hardBudgetKopecks,
+      },
       { status: 429 }
     )
   }
@@ -161,7 +174,7 @@ export async function POST(req: Request) {
 
   try {
     const { report, usage } = await generateMonthlyReport(input)
-    await recordAiUsage(session.sub, 'stats', 'success', usage)
+    await recordAiUsage(session.sub, 'monthly_report', 'success', usage)
 
     const serialized = JSON.stringify(report)
     await db.aiMonthlyReport.upsert({
@@ -176,11 +189,11 @@ export async function POST(req: Request) {
       if (err.code === 'OPENAI_KEY_MISSING') {
         return NextResponse.json({ error: err.code }, { status: 503 })
       }
-      await recordAiUsage(session.sub, 'stats', 'error')
+      await recordAiUsage(session.sub, 'monthly_report', 'error')
       console.error('[monthly-report]', err.code, err.message)
       return NextResponse.json({ error: err.code }, { status: 502 })
     }
-    await recordAiUsage(session.sub, 'stats', 'error')
+    await recordAiUsage(session.sub, 'monthly_report', 'error')
     console.error('[monthly-report]', err)
     return NextResponse.json({ error: 'SERVER_ERROR' }, { status: 500 })
   } finally {

@@ -2,7 +2,12 @@ import 'server-only'
 import { db } from '@/lib/db'
 import type { AiUsageInfo } from '@/lib/openai'
 
-export type AiFeature = 'program' | 'stats'
+export type AiFeature =
+  | 'program'
+  | 'stats' // legacy rows created before per-action accounting
+  | 'stats_auto'
+  | 'stats_manual'
+  | 'monthly_report'
 export type AiUsageStatus = 'success' | 'error'
 
 // Persists a single AI call to the AiUsage journal. Never throws — usage

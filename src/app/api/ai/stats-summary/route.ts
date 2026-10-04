@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { getEntitlement, checkAiQuota } from '@/lib/entitlements'
+import { getEntitlement, checkAiQuota, checkAiBudget } from '@/lib/entitlements'
 import { generateStatsSummary, OpenAIError, type StatsSummaryInput } from '@/lib/openai'
 import { recordAiUsage } from '@/lib/aiUsage'
 import { acquireRateLimit } from '@/lib/rate-limit'
+import { getAiCostControls } from '@/lib/settings'
 
 function num(v: unknown, fallback = 0): number {
   const n = typeof v === 'number' ? v : parseFloat(String(v))
@@ -59,6 +60,7 @@ export async function POST(req: Request) {
   }
 
   const input = sanitize(raw)
+  const manualRefresh = raw?.manualRefresh === true
   const monthKey = typeof raw?.monthKey === 'string' ? raw.monthKey : ''
   if (!/^\d{4}-\d{2}$/.test(monthKey)) {
     return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
@@ -81,15 +83,47 @@ export async function POST(req: Request) {
   const cached = await db.aiStatsSummary.findUnique({
     where: { userId_monthKey: { userId: session.sub, monthKey } },
   })
-  if (cached && cached.payloadHash === payloadHash) {
+  if (cached && cached.payloadHash === payloadHash && !manualRefresh) {
     return NextResponse.json({ summary: cached.summary, cached: true })
   }
 
-  // A new unique analysis counts against the monthly cap.
-  const quota = await checkAiQuota(session.sub, 'stats', ent.planId)
-  if (!quota.allowed) {
+  // Automatic summaries are refreshed at most once per 24 hours. If the
+  // underlying stats changed sooner, serve the last useful summary as stale
+  // instead of silently burning several calls while a workout is being edited.
+  if (cached && !manualRefresh) {
+    const controls = await getAiCostControls()
+    const nextRefreshAt = new Date(
+      cached.sourceUpdatedAt.getTime() + controls.autoStatsRefreshHours * 60 * 60 * 1000
+    )
+    if (nextRefreshAt.getTime() > Date.now()) {
+      return NextResponse.json({
+        summary: cached.summary,
+        cached: true,
+        stale: cached.payloadHash !== payloadHash,
+        nextRefreshAt,
+      })
+    }
+  }
+
+  if (manualRefresh) {
+    const quota = await checkAiQuota(session.sub, 'stats_manual')
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: 'MANUAL_QUOTA_EXCEEDED', limit: quota.limit, used: quota.used, resetAt: quota.resetAt },
+        { status: 429 }
+      )
+    }
+  }
+
+  const budget = await checkAiBudget(session.sub)
+  if (budget.hardExceeded || (manualRefresh && budget.softExceeded)) {
     return NextResponse.json(
-      { error: 'QUOTA_EXCEEDED', limit: quota.limit, used: quota.used, resetAt: quota.resetAt },
+      {
+        error: budget.hardExceeded ? 'HARD_BUDGET_EXCEEDED' : 'SOFT_BUDGET_EXCEEDED',
+        spentKopecks: budget.spentKopecks,
+        softBudgetKopecks: budget.softBudgetKopecks,
+        hardBudgetKopecks: budget.hardBudgetKopecks,
+      },
       { status: 429 }
     )
   }
@@ -104,7 +138,7 @@ export async function POST(req: Request) {
 
   try {
     const { summary, usage } = await generateStatsSummary(input)
-    await recordAiUsage(session.sub, 'stats', 'success', usage)
+    await recordAiUsage(session.sub, manualRefresh ? 'stats_manual' : 'stats_auto', 'success', usage)
 
     await db.aiStatsSummary.upsert({
       where: { userId_monthKey: { userId: session.sub, monthKey } },
@@ -118,11 +152,11 @@ export async function POST(req: Request) {
       if (err.code === 'OPENAI_KEY_MISSING') {
         return NextResponse.json({ error: err.code }, { status: 503 })
       }
-      await recordAiUsage(session.sub, 'stats', 'error')
+      await recordAiUsage(session.sub, manualRefresh ? 'stats_manual' : 'stats_auto', 'error')
       console.error('[stats-summary]', err.code, err.message)
       return NextResponse.json({ error: err.code }, { status: 502 })
     }
-    await recordAiUsage(session.sub, 'stats', 'error')
+    await recordAiUsage(session.sub, manualRefresh ? 'stats_manual' : 'stats_auto', 'error')
     console.error('[stats-summary]', err)
     return NextResponse.json({ error: 'SERVER_ERROR' }, { status: 500 })
   } finally {

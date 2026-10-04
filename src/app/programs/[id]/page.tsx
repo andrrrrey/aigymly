@@ -77,6 +77,8 @@ export default function ProgramDetailPage() {
           showToast('Перегенерация доступна по подписке Pro');
         } else if (data?.error === 'QUOTA_EXCEEDED') {
           showToast('Лимит обновлений программ на этот период исчерпан');
+        } else if (data?.error === 'HARD_BUDGET_EXCEEDED') {
+          showToast('AI-генерация временно недоступна до обновления бюджета');
         } else if (res.status === 429) {
           showToast('Слишком часто. Подожди немного и попробуй снова');
         } else {

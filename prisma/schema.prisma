@@ -145,7 +145,7 @@ model Payment {
 // an estimated ruble cost so the actual AI cost-per-subscriber is measurable.
 // `feature` is 'program' | 'stats'; `status` is 'success' | 'error'.
 // `estimatedCost` is in kopecks (Int) so it aggregates without float drift;
-// null when the model's pricing is unknown.
+// legacy rows may be null; new unknown models use a conservative fallback.
 model AiUsage {
   id            String   @id @default(cuid())
   userId        String
@@ -198,9 +198,8 @@ model AiMonthlyReport {
   @@unique([userId, monthKey])
 }
 
-// Editable per-plan quota. Lets AI action allowances be tuned from data without
-// a code change. `feature` is 'program' | 'stats'. Falls back to code constants
-// when no row exists for a plan/feature.
+// Legacy per-plan quotas retained for database compatibility. New global AI
+// budgets and action limits live in Setting and are managed from the admin UI.
 model PlanLimit {
   id         String   @id @default(cuid())
   planId     String

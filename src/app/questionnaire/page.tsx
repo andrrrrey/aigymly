@@ -178,6 +178,8 @@ export default function QuestionnairePage() {
           setError('Генерация недоступна: администратор ещё не настроил ключ OpenAI.');
         } else if (data?.error === 'QUOTA_EXCEEDED') {
           setError('Лимит создания программ на этот период исчерпан. Попробуй позже.');
+        } else if (data?.error === 'HARD_BUDGET_EXCEEDED') {
+          setError('AI-генерация временно недоступна до обновления бюджета за 30 дней.');
         } else if (res.status === 429) {
           setError('Слишком часто. Подожди немного и попробуй снова.');
         } else {
